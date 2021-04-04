@@ -453,7 +453,7 @@ def run_ablation(dir_path, plot_separate):
             plt.savefig(Path(dir_path, ' '.join(['ablation', metric, 'by layers'])))
 
 def run_morph(dir_path, plot_separate):
-    num_subplots = 2 #TODO change to 3 after fixing layer 12
+    num_subplots = 3
     axs = [0] * num_subplots
     for metric in ['wrong words', 'correct lemmas', 'wrong lemmas', 'no attribute', 'correct values',
                    'wrong values', 'split words']:
@@ -461,7 +461,7 @@ def run_morph(dir_path, plot_separate):
             fig, axs = plt.subplots(num_subplots, figsize=[8.4, 6.8])
             fig.suptitle(' '.join(['ablation', dir_path.parts[-2], dir_path.parts[-1], metric, 'per layer']))
             legend = None
-        for i, layer in enumerate([2, 7]):
+        for i, layer in enumerate([2, 7, 12]):
             max_nums = [0, 400, 600] if plot_separate else [0]
             for max_num in max_nums:
                 # for max_num in [0]:
@@ -488,8 +488,6 @@ if __name__ == "__main__":
     root_path = Path('results',data_name,language)
     atts_path = [p for p in root_path.glob('*') if not p.is_file()]
     for att_path in atts_path:
-        if att_path.parts[-1] == 'Part of Speech':
-            continue
         # run_all_probing(att_path, plot_separate=False)
         # run_ablation(att_path, plot_separate=False)
         run_morph(att_path, plot_separate=False)
