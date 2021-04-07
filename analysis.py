@@ -346,10 +346,11 @@ class morphologyAblation(plots):
                                                        curr_stats['wrong word']))
                         self.no_attribute[name].append((num_ablated, curr_stats['no attribute'] /
                                                        curr_stats['wrong word']))
-                        self.correct_val[name].append((num_ablated, curr_stats['correct val'] /
-                                                       curr_stats['kept attribute']))
-                        self.wrong_val[name].append((num_ablated, curr_stats['wrong val'] /
-                                                       curr_stats['kept attribute']))
+                        if curr_stats['kept attribute'] != 0:
+                            self.correct_val[name].append((num_ablated, curr_stats['correct val'] /
+                                                           curr_stats['kept attribute']))
+                            self.wrong_val[name].append((num_ablated, curr_stats['wrong val'] /
+                                                           curr_stats['kept attribute']))
                         self.split_words[name].append((num_ablated, curr_stats['pred split'] /
                                                        curr_stats['relevant']))
 
@@ -479,12 +480,14 @@ def run_morph(dir_path, plot_separate):
                 ax.label_outer()
             # fig.legend(legend, ncol=5, loc='upper center', prop={'size':8}, bbox_to_anchor=(0.5,0.95))
             fig.legend(ncol=5, loc='upper center', prop={'size': 8}, bbox_to_anchor=(0.5, 0.95))
-            plt.savefig(Path(dir_path, ' '.join(['ablation', metric, 'by layers'])))
+            if not Path(dir_path,'spacy figs').exists():
+                Path(dir_path,'spacy figs').mkdir()
+            plt.savefig(Path(dir_path, 'spacy figs', ' '.join(['ablation', metric, 'by layers'])))
 
 
 if __name__ == "__main__":
     data_name = 'UM'
-    language = 'eng'
+    language = 'rus'
     root_path = Path('results',data_name,language)
     atts_path = [p for p in root_path.glob('*') if not p.is_file()]
     for att_path in atts_path:
