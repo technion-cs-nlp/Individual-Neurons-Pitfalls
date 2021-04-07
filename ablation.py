@@ -234,8 +234,7 @@ if __name__ == "__main__":
         neurons_list = list(reversed(neurons_list))
     sparsed = '' if step == 0 else 'sparsed '
     res_file_name = sparsed + 'by ' + args.ranking + control_str
-    last_dir_name = 'ablation by attr' if step == 0 else 'spacy'
-    ablation_res_dir = Path(res_file_dir,last_dir_name)
+    ablation_res_dir = Path(res_file_dir,'ablation by attr')
     if not ablation_res_dir.exists():
         ablation_res_dir.mkdir()
 
