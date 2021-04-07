@@ -35,7 +35,9 @@ class morphCompare():
         self.attribute = attribute
         self.layer = layer
         self.ranking = ranking
-        self.parser = spacy.load('en_core_web_sm')
+        parsers = {'eng':'en_core_web_sm',
+                   'rus':'ru_core_news_sm'}
+        self.parser = spacy.load(parsers[self.language])
         # self.parser.tokenizer = BertTokenizer(self.parser.vocab, "bert-base-multilingual-cased-vocab.txt")
         self.true_morph, self.true_words_to_tokens, self.true_tokens_to_words = self.parse_true()
         self.pred_morph, self.pred_words_to_tokens, self.pred_tokens_to_words = self.parse_preds()
@@ -70,7 +72,11 @@ class morphCompare():
                 if self.attribute == "Part of Speech":
                     sentence_stats['attribute'][token_idx] = token.pos_
                 morph = token.morph.to_dict()
-                if self.attribute in morph:
+                if self.attribute == "Gender and Noun Class":
+                    #mismatch between UM and Spacy notations
+                    if 'Gender' in morph:
+                        sentence_stats['attribute'][token_idx] = morph['Gender']
+                elif self.attribute in morph:
                     sentence_stats['attribute'][token_idx] = morph[self.attribute]
             stats[sent_idx] = sentence_stats
         return stats
