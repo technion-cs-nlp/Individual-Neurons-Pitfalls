@@ -63,9 +63,9 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
                 # if layer == 12:
                 #     no_pad_words_per_att = {i: {att: [w-1 for w in l] for att, l in d.items()} for i,d in words_per_att.items()}
                 #     words_per_att = no_pad_words_per_att
-            # lemmas_path = Path(dump_path, set_name + 'lemmas.pkl')
-            # with open(lemmas_path, 'rb') as f:
-            #     lemmas = pickle.load(f)
+            lemmas_path = Path(dump_path, set_name + 'lemmas.pkl')
+            with open(lemmas_path, 'rb') as f:
+                lemmas = pickle.load(f)
             # parsed_data_path = Path(dump_path, set_name+'parsed.pkl')
             # with open(parsed_data_path,'rb') as f:
             #     parsed_data = pickle.load(f)
@@ -84,7 +84,7 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
     missing_num = len(missing_neurons)
     if missing_num > 0:
         neurons_list = list(missing_neurons)+neurons_list
-    decoded_outputs, decoded_tokens = {}, {}
+    decoded_outputs, decoded_tokens, lemmas_ranks = {}, {}, {}
     for num_ablated in progressbar(range(missing_num, consts.BERT_OUTPUT_DIM, step)):
     # for num_ablated in progressbar(range(missing_num, consts.BERT_OUTPUT_DIM)):
     # for num_ablated in progressbar(range(500, consts.BERT_OUTPUT_DIM, step)): #TODO
@@ -104,6 +104,7 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
         sentence_idx = 0
         decoded_outputs[num_ablated] = []
         decoded_tokens[num_ablated] = []
+        lemmas_ranks[num_ablated] = []
         for sentences_and_features in set_dataloader:
             sentences = sentences_and_features[0]
             # features = torch.cat(sentences_and_features[1])
@@ -140,8 +141,8 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
                             relevant_words_features[:, neurons_to_ablate] = 0.
                             f[words_per_att[sentence_idx][attribute]] = relevant_words_features
                         sentence_idx+=1
-            # batch_lemmas = lemmas[sentence_idx - len(sentences):sentence_idx]
-            res = model(sentences, features, relevant_indices)
+            batch_lemmas = lemmas[sentence_idx - len(sentences):sentence_idx]
+            res = model(sentences, features, relevant_indices, batch_lemmas)
             # loss, correct_preds, num_tokens, correct_relevant, num_relevant = res
             counters['total_loss'] += res['loss']
             counters['total_correct'] += res['correct_all']
@@ -153,6 +154,7 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
             # counters['lemma_preds'] += res['lemma_preds']
             # decoded_outputs[num_ablated].extend(res['pred_sentences'])
             decoded_tokens[num_ablated].extend(res['pred_tokens'])
+            lemmas_ranks[num_ablated].extend(res['lemmas_ranks'])
         end = time.time()
         print('time for iteration: {} seconds'.format(end-start_time))
         loss, acc = counters['total_loss'] / len(set_dataloader),\
@@ -180,6 +182,8 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
         outputs_dir.mkdir(parents=True, exist_ok=True)
     with open(Path(outputs_dir,'ablation_token_outputs_by_'+ranking+'.pkl'),'wb+') as f:
         pickle.dump(decoded_tokens, f)
+    with open(Path(outputs_dir, 'ablation_lemmas_ranks_by_'+ranking+'.pkl'),'wb+') as f:
+        pickle.dump(lemmas_ranks,f)
 
 if __name__ == "__main__":
     torch.manual_seed(consts.SEED)
