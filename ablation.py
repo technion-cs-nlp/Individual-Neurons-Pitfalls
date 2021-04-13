@@ -214,8 +214,8 @@ if __name__ == "__main__":
     data_path = datas_path[language]
     get_bert_features(data_path, data_name, language, layer)
     res_file_dir = Path('results', data_name, language, args.attribute, 'layer ' + str(layer))
-    if not res_file_dir.exists():
-        res_file_dir.mkdir(parents=True, exist_ok=True)
+    # if not res_file_dir.exists():
+    #     res_file_dir.mkdir(parents=True, exist_ok=True)
     linear_model_path = Path('pickles', data_name, language, attribute,
                              'best_model_whole_vector_layer_' + str(layer) + control_str + small_dataset_str)
     bayes_res_path = Path(res_file_dir, 'bayes by bayes mi'+control_str)
