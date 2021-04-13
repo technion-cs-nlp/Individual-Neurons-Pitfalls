@@ -5,6 +5,7 @@ import numpy as np
 from scipy.interpolate import interpolate
 import torch
 import consts
+import utils
 import copy
 from argparse import ArgumentParser
 import ast
@@ -314,8 +315,14 @@ class morphologyAblation(plots):
     def __init__(self, dir_path, names, layer, max_num=760):
         super(morphologyAblation, self).__init__(dir_path, max_num)
         self.colors = {'by bayes mi': 'black', 'by top avg': 'red',
-                       'by bottom avg': 'orange', 'by worst mi': 'purple', 'by random': 'green'}
+                       'by bottom avg': 'orange', 'by worst mi': 'purple', 'by random': 'green',
+                        'wrong words': 'black', 'correct lemmas': 'red',
+                       'kept attribute': 'orange', 'correct values': 'purple',
+                       'split words': 'green'}
         self.names = names
+        # bayes doesn't start from 0 ablated and we need the num of errors for 0 ablated
+        assert self.names[0] == 'by bayes mi' and self.names[3] == 'by top avg'
+        self.names[0], self.names[3] = 'by top avg', 'by bayes mi'
         self.language = dir_path.parts[2]
         self.attribute = dir_path.parts[3]
         self.layer = layer
@@ -325,11 +332,13 @@ class morphologyAblation(plots):
     def load_results(self):
         self.wrong_word = {name: [] for name in self.names}
         self.correct_lemma = {name: [] for name in self.names}
-        self.wrong_lemma = {name: [] for name in self.names}
-        self.no_attribute = {name: [] for name in self.names}
+        # self.wrong_lemma = {name: [] for name in self.names}
+        self.kept_attribute = {name: [] for name in self.names}
+        # self.no_attribute = {name: [] for name in self.names}
         self.correct_val = {name: [] for name in self.names}
-        self.wrong_val = {name: [] for name in self.names}
+        # self.wrong_val = {name: [] for name in self.names}
         self.split_words = {name: [] for name in self.names}
+
         num_ablated = 0
         for name in self.names:
             with open(Path(self.dir_path, name), 'r') as f:
@@ -338,30 +347,52 @@ class morphologyAblation(plots):
                         num_ablated = int(line.split()[-1])
                     if line.startswith('{'):
                         curr_stats = ast.literal_eval(line)
+                        if name == 'by top avg' and num_ablated == 0:
+                            self.initial_errors = curr_stats['wrong word']
+                            self.initial_correct_lemma = curr_stats['correct lemma']
+                            # self.initial_wrong_lemma = curr_stats['wrong lemma']
+                            self.initial_no_attribute = curr_stats['no attribute']
                         self.wrong_word[name].append((num_ablated, curr_stats['wrong word'] /
                                                       (curr_stats['relevant'] - curr_stats['pred split'])))
-                        self.correct_lemma[name].append((num_ablated, curr_stats['correct lemma'] /
-                                                         curr_stats['wrong word']))
-                        self.wrong_lemma[name].append((num_ablated, curr_stats['wrong lemma'] /
-                                                       curr_stats['wrong word']))
-                        self.no_attribute[name].append((num_ablated, curr_stats['no attribute'] /
-                                                       curr_stats['wrong word']))
+                        # new_errors = curr_stats['wrong word'] - self.initial_errors
+                        # new_correct_lemma = curr_stats['correct lemma'] - self.initial_correct_lemma
+                        # new_wrong_lemma = curr_stats['wrong lemma'] - self.initial_wrong_lemma
+                        # new_no_attribute = curr_stats['no attribute'] - self.initial_no_attribute
+                        # if new_errors < 0 or new_no_attribute < 0 or new_correct_lemma < 0:
+                        #     print('here')
+                        self.correct_lemma[name].append((num_ablated,
+                                                         utils.divide_zero(curr_stats['correct lemma'],
+                                                                           curr_stats['wrong word'])))
+                        # if utils.divide_zero(new_correct_lemma, new_errors) > 1:
+                        #     print('here')
+                        self.kept_attribute[name].append((num_ablated,
+                                                        utils.divide_zero(curr_stats['kept attribute'],
+                                                                          curr_stats['wrong word'])))
+                        # self.no_attribute[name].append((num_ablated,
+                        #                                 utils.divide_zero(curr_stats['no attribute'],
+                        #                                                   curr_stats['wrong word'])))
                         if curr_stats['kept attribute'] != 0:
                             self.correct_val[name].append((num_ablated, curr_stats['correct val'] /
-                                                           curr_stats['kept attribute']))
-                            self.wrong_val[name].append((num_ablated, curr_stats['wrong val'] /
                                                            curr_stats['kept attribute']))
                         self.split_words[name].append((num_ablated, curr_stats['pred split'] /
                                                        curr_stats['relevant']))
 
     def plot_metric(self, ax, to_save, metric):
         graph_types = {'wrong words': self.wrong_word, 'correct lemmas': self.correct_lemma,
-                       'wrong lemmas': self.wrong_lemma, 'no attribute': self.no_attribute,
-                       'correct values': self.correct_val, 'wrong values': self.wrong_val,
+                       'kept attribute': self.kept_attribute,'correct values': self.correct_val,
                        'split words': self.split_words}
         results = graph_types[metric]
         title = ' '.join([self.language, self.attribute, self.layer_str, 'ablation ']) + metric
         ax, legend = self.prep_plot(title, results, metric, xlabel='ablated neurons', ax=ax, to_save=to_save)
+        return ax, legend
+
+    def plot_ranking(self, ax, to_save, ranking):
+        all_results = {'wrong words': self.wrong_word, 'correct lemmas': self.correct_lemma,
+                       'kept attribute': self.kept_attribute, 'correct values': self.correct_val,
+                       'split words': self.split_words}
+        results = {metric: r[ranking] for metric, r in all_results.items()}
+        title = ' '.join([self.language, self.attribute, self.layer_str, 'ablation ']) + ranking
+        ax, legend = self.prep_plot(title, results, ranking, xlabel='ablated neurons', ax=ax, to_save=to_save)
         return ax, legend
 
     def draw_plot(self, ax, sorted_results):
@@ -453,14 +484,15 @@ def run_ablation(dir_path, plot_separate):
             fig.legend(ncol=5, loc='upper center', prop={'size':8}, bbox_to_anchor=(0.5,0.95))
             plt.savefig(Path(dir_path, ' '.join(['ablation', metric, 'by layers'])))
 
-def run_morph(dir_path, plot_separate):
+def run_morph(dir_path, plot_separate, all_rankings):
     num_subplots = 3
     axs = [0] * num_subplots
-    for metric in ['wrong words', 'correct lemmas', 'wrong lemmas', 'no attribute', 'correct values',
-                   'wrong values', 'split words']:
+    iter_list = ['wrong words', 'correct lemmas', 'kept attribute', 'correct values', 'split words'] if all_rankings \
+        else ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi', 'by random']
+    for name in iter_list:
         if not plot_separate:
             fig, axs = plt.subplots(num_subplots, figsize=[8.4, 6.8])
-            fig.suptitle(' '.join(['ablation', dir_path.parts[-2], dir_path.parts[-1], metric, 'per layer']))
+            fig.suptitle(' '.join(['ablation', dir_path.parts[-2], dir_path.parts[-1], name, 'per layer']))
             legend = None
         for i, layer in enumerate([2, 7, 12]):
             max_nums = [0, 400, 600] if plot_separate else [0]
@@ -472,7 +504,8 @@ def run_morph(dir_path, plot_separate):
                 res_files_names = [f.parts[-1] for f in spacy_root_path.glob('*') if
                                    f.is_file()]
                 ma = morphologyAblation(dir_path=spacy_root_path, names=res_files_names, layer=layer, max_num=max_num)
-                axs[i], legend = ma.plot_metric(axs[i], plot_separate, metric)
+                axs[i], legend = ma.plot_metric(axs[i], plot_separate, name) if all_rankings \
+                    else ma.plot_ranking(axs[i], plot_separate, name)
                 if not plot_separate:
                     axs[i].text(1.01, 0.5, 'layer ' + str(layer), transform=axs[i].transAxes)
         if not plot_separate:
@@ -482,15 +515,15 @@ def run_morph(dir_path, plot_separate):
             fig.legend(ncol=5, loc='upper center', prop={'size': 8}, bbox_to_anchor=(0.5, 0.95))
             if not Path(dir_path,'spacy figs').exists():
                 Path(dir_path,'spacy figs').mkdir()
-            plt.savefig(Path(dir_path, 'spacy figs', ' '.join(['ablation', metric, 'by layers'])))
+            plt.savefig(Path(dir_path, 'spacy figs', ' '.join(['ablation', name, 'by layers'])))
 
 
 if __name__ == "__main__":
     data_name = 'UM'
-    language = 'rus'
+    language = 'bul'
     root_path = Path('results',data_name,language)
     atts_path = [p for p in root_path.glob('*') if not p.is_file()]
     for att_path in atts_path:
-        # run_all_probing(att_path, plot_separate=False)
+        run_all_probing(att_path, plot_separate=False)
         # run_ablation(att_path, plot_separate=False)
-        run_morph(att_path, plot_separate=False)
+        # run_morph(att_path, plot_separate=False, all_rankings=False)
