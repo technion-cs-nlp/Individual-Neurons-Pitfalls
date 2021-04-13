@@ -102,3 +102,5 @@ def sort_neurons_by_LMhead_avg_weights(head_path):
     sorted_weights = head_weights.abs().mean(dim=0).sort(descending=True).indices
     return sorted_weights
 
+def divide_zero(num, denom):
+    return num / denom if denom else 0

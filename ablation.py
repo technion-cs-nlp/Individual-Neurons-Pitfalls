@@ -32,9 +32,6 @@ def collate_fn(batch):
     features = [item[1] for item in batch]
     return [sentences, features]
 
-def divide_zero(num, denom):
-    return num / denom if denom else 0
-
 def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=False, ranking='', step=0):
     set_name = 'test_'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -162,9 +159,9 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
                     counters['total_correct'] / counters['total_tokens']
         print('loss: ', loss)
         print('accuracy: ', acc)
-        relevant_acc = divide_zero(counters['total_correct_relevant'], counters['total_relevant'])
+        relevant_acc = utils.divide_zero(counters['total_correct_relevant'], counters['total_relevant'])
         print('relevant words accuracy: ', relevant_acc)
-        irrelevant_acc = divide_zero(counters['total_correct_irrelevant'], counters['total_irrelevant'])
+        irrelevant_acc = utils.divide_zero(counters['total_correct_irrelevant'], counters['total_irrelevant'])
         print('irrelevant words accuracy: ', irrelevant_acc)
         # wrong_relevant = counters['total_relevant'] - counters['total_correct_relevant']
         # print('lemma predictions: ',counters['lemma_preds'])
