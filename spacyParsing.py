@@ -10,25 +10,6 @@ from tokenizers import BertWordPieceTokenizer
 from spacy.tokens import Doc
 from transformers import BertTokenizer
 
-class BertTokenizer:
-    def __init__(self, vocab, vocab_file, lowercase=False):
-        self.vocab = vocab
-        self._tokenizer = BertWordPieceTokenizer(vocab_file, lowercase=lowercase)
-
-    def __call__(self, text):
-        tokens = self._tokenizer.encode(text)
-        words = []
-        spaces = []
-        for i, (text, (start, end)) in enumerate(zip(tokens.tokens, tokens.offsets)):
-            words.append(text)
-            if i < len(tokens.tokens) - 1:
-                # If next start != current end we assume a space in between
-                next_start, next_end = tokens.offsets[i + 1]
-                spaces.append(next_start > end)
-            else:
-                spaces.append(True)
-        return Doc(self.vocab, words=words, spaces=spaces)
-
 class morphCompare():
     def __init__(self, language, attribute, layer, ranking):
         self.language = language
