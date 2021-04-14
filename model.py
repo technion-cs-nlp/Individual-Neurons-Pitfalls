@@ -168,35 +168,57 @@ class BertFromMiddle(nn.Module):
         self.layers = self.bert.bert.encoder.layer[self.layer:]
         self.classifier = self.bert.cls
 
-    def count_lemma_preds(self, words_to_tokens, pred_scores, labels, lemmas, relevant_indices):
+    def get_lemma_ranks(self, words_to_tokens, tokens_to_words, pred_scores, labels, lemmas, relevant_indices):
         res = []
-        for i, words_toks in enumerate(words_to_tokens):
-            for j, word in enumerate(words_toks):
+        for sentence_idx, token_idxs in enumerate(relevant_indices):
+            for token_idx in token_idxs:
+                word_idx = tokens_to_words[sentence_idx][token_idx-1]
+                word_tokens = words_to_tokens[sentence_idx][word_idx]
                 # we only look at words that aren't being split, for now
-                if len(word) > 1:
+                if len(word_tokens) > 1:
                     continue
-                # we only look at words that possess the attribute
-                if word[0] not in relevant_indices[i]:
+                true_word = self.tokenizer.decode(labels[sentence_idx][word_tokens[0]])
+                if not true_word in lemmas[sentence_idx]:
                     continue
-                true_word = self.tokenizer.decode(labels[i][word[0]: word[-1] + 1])
-                if not true_word in lemmas[i]:
-                    continue
-                lemma = lemmas[i][true_word]
+                lemma = lemmas[sentence_idx][true_word]
                 # we only look at words that are different from their lemma
                 if true_word.lower() == lemma.lower():
                     continue
-                pred_words = self.tokenizer.decode(pred_scores[i][:,word[0]].sort(descending=True).indices).split()
+                lemma_token = self.tokenizer.encode(lemma)[1]
+                preds = pred_scores[sentence_idx][:, word_tokens[0]].sort(descending=True).indices.tolist()
                 try:
-                    lemma_rank = pred_words.index(lemma)
+                    lemma_rank = preds.index(lemma_token)
                 except:
-                    lemma_rank = len(pred_words)
+                    lemma_rank = len(preds)
                 res.append(lemma_rank)
-                # pred_word = self.tokenizer.decode(preds[i][word[0]: word[-1] + 1])
-                # if pred_word.lower() != true_word.lower():
-                #     if lemmas[i][true_word] == pred_word:
-                #         lemma_preds += 1
-                #         print(true_word, pred_word)
         return res
+        # for i, words_toks in enumerate(words_to_tokens):
+        #     for j, word in enumerate(words_toks):
+        #         # we only look at words that aren't being split, for now
+        #         if len(word) > 1:
+        #             continue
+        #         # we only look at words that possess the attribute
+        #         if word[0] not in relevant_indices[i]:
+        #             continue
+        #         true_word = self.tokenizer.decode(labels[i][word[0]: word[-1] + 1])
+        #         if not true_word in lemmas[i]:
+        #             continue
+        #         lemma = lemmas[i][true_word]
+        #         # we only look at words that are different from their lemma
+        #         if true_word.lower() == lemma.lower():
+        #             continue
+        #         pred_words = self.tokenizer.decode(pred_scores[i][:,word[0]].sort(descending=True).indices).split()
+        #         try:
+        #             lemma_rank = pred_words.index(lemma)
+        #         except:
+        #             lemma_rank = len(pred_words)
+        #         res.append(lemma_rank)
+        #         # pred_word = self.tokenizer.decode(preds[i][word[0]: word[-1] + 1])
+        #         # if pred_word.lower() != true_word.lower():
+        #         #     if lemmas[i][true_word] == pred_word:
+        #         #         lemma_preds += 1
+        #         #         print(true_word, pred_word)
+        # return res
 
     def map_words_to_tokens(self, sentences, batch_labels):
         words_to_tokens = []
@@ -252,7 +274,7 @@ class BertFromMiddle(nn.Module):
         with torch.no_grad():
             batch_labels = self.tokenizer(sentences, padding=True, return_tensors="pt").to(self.device)
             words_to_tokens = self.map_words_to_tokens(sentences, batch_labels)
-            # tokens_to_words = self.map_tokens_to_words(words_to_tokens)
+            tokens_to_words = self.map_tokens_to_words(words_to_tokens)
             labels = batch_labels['input_ids']
             attention_mask = torch.where(labels == 0, torch.zeros_like(labels), torch.ones_like(labels))
             extended_attention_mask = attention_mask[:, None, None, :]
@@ -277,7 +299,7 @@ class BertFromMiddle(nn.Module):
             res = dict.fromkeys(['loss', 'correct_all', 'num_all', 'correct_relevant', 'num_relevant',
                                  'correct_irrelevant', 'num_irrelevant','lemma_preds'],None)
             res['lemmas_ranks'] = \
-                self.count_lemma_preds(words_to_tokens,pred_scores,labels,lemmas, subtokens_with_attribute)
+                self.get_lemma_ranks(words_to_tokens, tokens_to_words, pred_scores,labels,lemmas, subtokens_with_attribute)
             res['loss'] = loss_func(pred_scores, labels).item()
             res['correct_all'] = (preds == labels).sum().item()
             res['num_all'] = (labels != -100).sum().item()

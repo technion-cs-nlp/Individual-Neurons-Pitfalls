@@ -233,7 +233,7 @@ if __name__ == "__main__":
         sys.exit('WRONG SETTING')
     if ranking == 'bottom avg':
         neurons_list = list(reversed(neurons_list))
-    sparsed = '' if step == 0 else 'sparsed '
+    sparsed = '' if step == 1 else 'sparsed '
     res_file_name = sparsed + 'by ' + args.ranking + control_str
     ablation_res_dir = Path(res_file_dir,'ablation by attr')
     if not ablation_res_dir.exists():
