@@ -9,6 +9,7 @@ import utils
 import copy
 from argparse import ArgumentParser
 import ast
+import pickle
 
 class plots():
     def __init__(self, dir_path:Path, max_num:int, ablation: bool = False):
@@ -328,6 +329,7 @@ class morphologyAblation(plots):
         self.layer = layer
         self.layer_str = 'layer ' + str(self.layer)
         self.load_results()
+        self.dump_results()
 
     def load_results(self):
         self.wrong_word = {name: [] for name in self.names}
@@ -376,6 +378,22 @@ class morphologyAblation(plots):
                                                            curr_stats['kept attribute']))
                         self.split_words[name].append((num_ablated, curr_stats['pred split'] /
                                                        curr_stats['relevant']))
+
+    def dump_results(self):
+        wrong_words_path = Path(self.dir_path, 'wrong words')
+        correct_lemmas_path = Path(self.dir_path, 'correct lemmas')
+        kept_att_path = Path(self.dir_path, 'kept attribute')
+        correct_val_path = Path(self.dir_path, 'correct val')
+        split_words_path = Path(self.dir_path, 'split words')
+        paths = [wrong_words_path, correct_lemmas_path, kept_att_path, correct_val_path, split_words_path]
+        for p in paths:
+            if not p.exists():
+                p.mkdir()
+        for p, rankings_results in zip(paths,[self.wrong_word, self.correct_lemma, self.kept_attribute,
+                                 self.correct_val, self.split_words]):
+            for name, res in rankings_results.items():
+                with open(Path(p,name),'wb+') as f:
+                    pickle.dump(res,f)
 
     def plot_metric(self, ax, to_save, metric):
         graph_types = {'wrong words': self.wrong_word, 'correct lemmas': self.correct_lemma,
@@ -520,10 +538,10 @@ def run_morph(dir_path, plot_separate, all_rankings):
 
 if __name__ == "__main__":
     data_name = 'UM'
-    language = 'bul'
+    language = 'eng'
     root_path = Path('results',data_name,language)
     atts_path = [p for p in root_path.glob('*') if not p.is_file()]
     for att_path in atts_path:
-        run_all_probing(att_path, plot_separate=False)
+        # run_all_probing(att_path, plot_separate=False)
         # run_ablation(att_path, plot_separate=False)
-        # run_morph(att_path, plot_separate=False, all_rankings=False)
+        run_morph(att_path, plot_separate=False, all_rankings=False)
