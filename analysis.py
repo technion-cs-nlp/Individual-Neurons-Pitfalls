@@ -10,6 +10,7 @@ import copy
 from argparse import ArgumentParser
 import ast
 import pickle
+import numpy as np
 
 class plots():
     def __init__(self, dir_path:Path, max_num:int, ablation: bool = False):
@@ -246,12 +247,12 @@ class ablation(plots):
                        'by bottom avg': 'orange', 'by worst mi': 'purple', 'by random': 'green'}
         self.names = names
         self.layer = layer
+        self.language = dir_path.parts[2]
+        self.attribute = dir_path.parts[3]
         self.load_results()
         self.save_path = Path(self.save_path, str(self.max_num))
         if not self.save_path.exists():
             self.save_path.mkdir(parents=True, exist_ok=True)
-        self.language = dir_path.parts[2]
-        self.attribute = dir_path.parts[3]
         self.layer_str = 'layer ' + str(self.layer)
 
     def load_results(self):
@@ -260,6 +261,10 @@ class ablation(plots):
         self.relevant_accs = {name: [] for name in self.names}
         self.irrelevant_accs = {name: [] for name in self.names}
         self.lemma_preds = {name: [] for name in self.names}
+        self.lemma_ranks = {name: [] for name in self.names}
+        self.lemma_log_ranks = {name: [] for name in self.names}
+        self.lemma_top_10 = {name: [] for name in self.names}
+        self.lemma_top_100 = {name: [] for name in self.names}
         num_neurons = 0
         for name in self.names:
             with open(Path(self.dir_path, name), 'r') as f:
@@ -285,6 +290,18 @@ class ablation(plots):
                     if line.startswith('lemma predictions:'):
                         self.lemma_preds[name].append((consts.BERT_OUTPUT_DIM - num_neurons,
                                                       int(line.split()[-1])))
+        lemma_ranks_path = Path('pickles','UM',self.language, self.attribute, str(self.layer))
+        for name in self.names:
+            cur_path = Path(lemma_ranks_path, 'ablation_lemmas_ranks_by_' + name[3:] + '.pkl')
+            if not cur_path.exists():
+                continue
+            with open(cur_path,'rb') as f:
+                res = pickle.load(f)
+                self.lemma_ranks[name] = [(num_ablated, np.mean(r)) for num_ablated, r in res.items()]
+                self.lemma_log_ranks[name] = [(num_ablated, np.mean(np.ma.filled(np.ma.log(r),0))) for num_ablated, r in res.items()]
+                self.lemma_top_10[name] = [(num_ablated, (np.where(np.array(r) < 10)[0].size) / len(r)) for num_ablated, r in res.items()]
+                self.lemma_top_100[name] = [(num_ablated, (np.where(np.array(r) < 100)[0].size) / len(r)) for num_ablated, r in
+                                           res.items()]
 
     def draw_plot(self, ax, sorted_results):
         legend = []
@@ -306,7 +323,9 @@ class ablation(plots):
         graph_types = {'total accuracy': self.total_accs, 'loss': self.loss_results,
                        'ablated words accuracy': self.relevant_accs,
                        'non-ablated words accuracy': self.irrelevant_accs,
-                        'lemma predictions': self.lemma_preds}
+                        'lemma predictions': self.lemma_preds,
+                       'avg lemma rank': self.lemma_ranks, 'avg lemma log rank': self.lemma_log_ranks,
+                       'lemmas in top 10': self.lemma_top_10, 'lemmas in top 100': self.lemma_top_100}
         results = graph_types[metric]
         title = ' '.join([self.language, self.attribute, self.layer_str,'ablation ']) + metric
         ax, legend = self.prep_plot(title, results, metric, xlabel='ablated neurons', ax=ax, to_save=to_save)
@@ -476,8 +495,9 @@ def run_all_probing(dir_path, plot_separate):
 
 def run_ablation(dir_path, plot_separate):
     axs = [0]*3
-    for metric in ['total accuracy', 'loss', 'ablated words accuracy', 'non-ablated words accuracy',
-                   'lemma predictions']:
+    # for metric in ['total accuracy', 'loss', 'ablated words accuracy', 'non-ablated words accuracy',
+    #                'lemma predictions']:
+    for metric in ['avg lemma rank', 'avg lemma log rank', 'lemmas in top 10', 'lemmas in top 100']:
         if not plot_separate:
             fig, axs = plt.subplots(3, figsize=[8.4, 6.8])
             fig.suptitle(' '.join(['ablation',dir_path.parts[-2], dir_path.parts[-1], metric, 'per layer']))
@@ -485,7 +505,6 @@ def run_ablation(dir_path, plot_separate):
         for i,layer in enumerate([2, 7, 12]):
             max_nums = [0,400,600] if plot_separate else [0]
             for max_num in max_nums:
-                # for max_num in [0]:
                 ablation_root_path = Path(dir_path, 'layer '+str(layer), 'ablation by attr')
                 if not ablation_root_path.exists():
                     continue
@@ -538,10 +557,11 @@ def run_morph(dir_path, plot_separate, all_rankings):
 
 if __name__ == "__main__":
     data_name = 'UM'
-    language = 'eng'
-    root_path = Path('results',data_name,language)
-    atts_path = [p for p in root_path.glob('*') if not p.is_file()]
-    for att_path in atts_path:
-        # run_all_probing(att_path, plot_separate=False)
-        # run_ablation(att_path, plot_separate=False)
-        run_morph(att_path, plot_separate=False, all_rankings=False)
+    languages = ['hin']
+    for lan in languages:
+        root_path = Path('results',data_name,lan)
+        atts_path = [p for p in root_path.glob('*') if not p.is_file()]
+        for att_path in atts_path:
+            # run_all_probing(att_path, plot_separate=False)
+            run_ablation(att_path, plot_separate=False)
+            # run_morph(att_path, plot_separate=False, all_rankings=False)
