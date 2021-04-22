@@ -56,5 +56,5 @@ def run_all(lan):
             plt_smt(lan, att_path.parts[-1], layer)
 
 if __name__ == "__main__":
-    lan = 'eng'
+    lan = 'rus'
     run_all(lan)

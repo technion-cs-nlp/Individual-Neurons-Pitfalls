@@ -23,7 +23,7 @@ class plots():
         if not self.save_path.exists():
             self.save_path.mkdir()
 
-    def draw_plot(self, ax, sorted_results):
+    def draw_plot(self, ax, sorted_results, auc=False):
         raise NotImplementedError
 
     def prep_plot(self, title, results, save_file_name, xlabel, ax, to_save=False):
@@ -31,9 +31,15 @@ class plots():
         if not results:
             return None, None
         # fig = plt.figure(figsize=[7.2, 4.8])
+        auc = True if save_file_name == 'test accuracy' else False
         if to_save:
-            plt.figure(figsize=[7.2,4.8])
-            ax = plt.subplot(111, title=title)
+            if auc:
+                fig = plt.figure(figsize=[9.8,5.8])
+                ax = plt.subplot(111)
+                fig.suptitle(title)
+            else:
+                plt.figure(figsize=[7.2, 4.8])
+                ax = plt.subplot(111, title=title)
         sorted_results = list(results.items())
         curr_max = min(self.max_num, len(sorted_results[0][1]))
         def sort_plots_by_last_val(l):
@@ -43,18 +49,30 @@ class plots():
                 return l[1][-1]
         def sort_plots_by_name(l):
             return l[0]
+        def sort_plots_by_auc(l):
+            return self.test_auc[l[0]]
         # sorted_results.sort(key=sort_plots_by_name)
-        sorted_results.sort(key=sort_plots_by_last_val,reverse=True)
-        ax, legend = self.draw_plot(ax, sorted_results)
+        if auc:
+            sorted_results.sort(key=sort_plots_by_auc,reverse=True)
+        else:
+            sorted_results.sort(key=sort_plots_by_last_val,reverse=True)
+        # find a better way for auc condition
+
+        ax, legend = self.draw_plot(ax, sorted_results, auc=auc)
         # box = ax.get_position()
         # ax.set_position([box.x0, box.y0, box.width * 0.75, box.height])
         # ax.legend(legend, loc='center left', bbox_to_anchor=(1, 0.5))
         ax.set_xlabel(xlabel)
         if to_save:
             box = ax.get_position()
-            ax.set_position([box.x0, box.y0, box.width * 0.75, box.height])
-            ax.legend(legend, loc='center left', bbox_to_anchor=(1, 0.5))
-            ax.set_title(title)
+            if auc:
+                ax.set_position([box.x0, box.y0, box.width, box.height * 0.85])
+                ax.legend(legend, ncol=2, loc='upper center', prop={'size': 9}, bbox_to_anchor=(0.5,1.29))
+            else:
+                ax.set_position([box.x0, box.y0, box.width * 0.75, box.height])
+                ax.legend(legend, loc='center left', bbox_to_anchor=(1, 0.5))
+                ax.set_title(title)
+            # fig.legend(ncol=5, loc='upper center', prop={'size': 8}, bbox_to_anchor=(0.5, 0.95))
             plt.savefig(Path(self.save_path, save_file_name))
             plt.close()
         return ax, legend
@@ -91,6 +109,7 @@ class probing(plots):
         self.test_acc_results = {name: [] for name in self.names if 'original' not in str(name)}
         self.test_mi_results = {name: [] for name in self.names if 'original' not in str(name)}
         self.test_nmi_results = {name: [] for name in self.names if 'original' not in str(name)}
+        self.test_auc = {}
         for name in self.names:
             if 'original' in name:
                 continue
@@ -108,6 +127,7 @@ class probing(plots):
                         self.train_nmi_results[name].append(round(float(line.split()[-1]), ndigits=4))
                     if 'nmi on test' in line:
                         self.test_nmi_results[name].append(round(float(line.split()[-1]), ndigits=4))
+            self.test_auc[name] = np.trapz(self.test_acc_results[name][:self.max_num], dx=1)
         control_names = [name + '_control' for name in self.names
                          if Path(self.dir_path, name + '_control').is_file()]
         self.train_controls = {name: [] for name in control_names}
@@ -129,7 +149,7 @@ class probing(plots):
         self.train_selectivities = {control_name[:-8]: [] for control_name in control_names}
         self.test_selectivities = {control_name[:-8]: [] for control_name in control_names}
 
-    def draw_plot(self, ax, sorted_results):
+    def draw_plot(self, ax, sorted_results, auc=False):
         legend = []
         for name, res in sorted_results:
             # TODO change 'layer==2' condition to something that makes sense
@@ -138,7 +158,8 @@ class probing(plots):
                 ax.plot(res[:self.max_num], color=self.colors[name], label=name)
             else:
                 ax.plot(res[:self.max_num], color=self.colors[name])
-            legend.append(name)
+            name_for_legend = ' '.join([name, '(AUC:{:.2f})'.format(self.test_auc[name])]) if auc else name
+            legend.append(name_for_legend)
         return ax, legend
 
     def plot_acc_and_nmi(self, ax, to_save, metric):
@@ -303,7 +324,7 @@ class ablation(plots):
                 self.lemma_top_100[name] = [(num_ablated, (np.where(np.array(r) < 100)[0].size) / len(r)) for num_ablated, r in
                                            res.items()]
 
-    def draw_plot(self, ax, sorted_results):
+    def draw_plot(self, ax, sorted_results, **kwargs):
         legend = []
         for name, res in sorted_results:
             x_axis = [r[0] for r in res]
@@ -432,7 +453,7 @@ class morphologyAblation(plots):
         ax, legend = self.prep_plot(title, results, ranking, xlabel='ablated neurons', ax=ax, to_save=to_save)
         return ax, legend
 
-    def draw_plot(self, ax, sorted_results):
+    def draw_plot(self, ax, sorted_results, **kwargs):
         legend = []
         for name, res in sorted_results:
             x_axis = [r[0] for r in res]
@@ -454,7 +475,8 @@ def run_all_probing(dir_path, plot_separate):
     axs = [0] * 3
     small_dataset = False
     max_nums = [50, 150] if plot_separate else [150]
-    model_types = ['all','linear','bayes'] if plot_separate else ['all']
+    # model_types = ['all','linear','bayes'] if plot_separate else ['all']
+    model_types = ['all']
     for metric in ['acc','nmi','selectivity','ranking avg', 'classifiers avg']:
         if not plot_separate:
             fig, axs = plt.subplots(3, figsize=[8.4, 6.8])
@@ -462,7 +484,6 @@ def run_all_probing(dir_path, plot_separate):
             legend=None
         for i, layer in enumerate([2, 7, 12]):
             for max_num in max_nums:
-                # for model_type in ['all','linear','bayes']:
                 for model_type in model_types:
                     layer_dir = Path(dir_path, 'layer '+str(layer))
                     res_files_names = [f.parts[-1] for f in layer_dir.glob('*') if
@@ -557,11 +578,11 @@ def run_morph(dir_path, plot_separate, all_rankings):
 
 if __name__ == "__main__":
     data_name = 'UM'
-    languages = ['hin']
+    languages = ['rus']
     for lan in languages:
         root_path = Path('results',data_name,lan)
         atts_path = [p for p in root_path.glob('*') if not p.is_file()]
         for att_path in atts_path:
-            # run_all_probing(att_path, plot_separate=False)
-            run_ablation(att_path, plot_separate=False)
-            # run_morph(att_path, plot_separate=False, all_rankings=False)
+            # run_all_probing(att_path, plot_separate=True)
+            # run_ablation(att_path, plot_separate=False)
+            run_morph(att_path, plot_separate=False, all_rankings=False)
