@@ -1,3 +1,5 @@
+from argparse import ArgumentParser
+
 from conllu import parse_incr, TokenList
 import consts
 import yaml
@@ -122,7 +124,11 @@ test_paths = {'eng': 'data/UM/eng/en_ewt-um-test.conllu',
               'tur': 'data/UM/tur/tr_imst-um-test.conllu'}
 
 if __name__ == "__main__":
-    language = 'tur'
+    argparser = ArgumentParser()
+    argparser.add_argument('-language', type=str)
+    args = argparser.parse_args()
+    language = args.language
+    print(f'language: {language}')
     train_path = train_paths[language]
     dev_path = dev_paths[language]
     test_path = test_paths[language]
