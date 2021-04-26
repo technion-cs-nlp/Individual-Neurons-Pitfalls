@@ -96,7 +96,9 @@ class morphCompare():
     def comp_stats(self, num_ablated):
         stats = dict.fromkeys(['correct word', 'wrong word', 'correct lemma', 'wrong lemma',
                                'kept attribute', 'no attribute', 'correct val', 'wrong val', 'relevant',
-                               'true split', 'pred split'], 0)
+                               'true split', 'pred split',
+                               'correct lemma, correct value', 'correct lemma, wrong value',
+                               'wrong lemma, correct value', 'wrong lemma, wrong value'], 0)
         pred_morph = self.pred_morph[num_ablated]
         pred_tokenization = self.pred_words_to_tokens[num_ablated]
         for sent_idx, curr_stats in self.true_morph.items():
@@ -124,8 +126,17 @@ class morphCompare():
                     stats['wrong word'] += 1
                     if curr_stats['lemmas'][token_idx].lower() == pred_morph[sent_idx]['lemmas'][pred_token_idx].lower():
                         stats['correct lemma'] += 1
+                        if pred_token_idx in pred_morph[sent_idx]['attribute'].keys() and val == pred_morph[sent_idx]['attribute'][pred_token_idx]:
+                            stats['correct lemma, correct value'] += 1
+                        else:
+                            stats['correct lemma, wrong value'] += 1
                     else:
                         stats['wrong lemma'] += 1
+                        if pred_token_idx in pred_morph[sent_idx]['attribute'].keys() \
+                            and val == pred_morph[sent_idx]['attribute'][pred_token_idx]:
+                            stats['wrong lemma, correct value'] += 1
+                        else:
+                            stats['wrong lemma, wrong value'] += 1
                     if pred_token_idx in pred_morph[sent_idx]['attribute'].keys():
                         stats['kept attribute'] += 1
                         if val == pred_morph[sent_idx]['attribute'][pred_token_idx]:
