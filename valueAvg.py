@@ -8,7 +8,7 @@ import itertools
 def get_values_avg(root_path, att, layer):
     with open(Path(root_path, 'train_parsed.pkl'),'rb') as f:
         parsed_train = pickle.load(f)
-    values_to_ignore = None
+    values_to_ignore = set()
     ignore_path = Path(root_path, att, 'values_to_ignore.pkl')
     if ignore_path.exists():
         with open(ignore_path, 'rb') as f:
