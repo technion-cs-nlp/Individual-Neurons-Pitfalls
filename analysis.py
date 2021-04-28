@@ -380,7 +380,10 @@ class morphologyAblation(plots):
         self.correct_val = {name: [] for name in self.names}
         # self.wrong_val = {name: [] for name in self.names}
         self.split_words = {name: [] for name in self.names}
-
+        self.correct_lemma_correct_val = {name: [] for name in self.names}
+        self.correct_lemma_wrong_val = {name: [] for name in self.names}
+        self.wrong_lemma_correct_val = {name: [] for name in self.names}
+        self.wrong_lemma_wrong_val = {name: [] for name in self.names}
         num_ablated = 0
         for name in self.names:
             with open(Path(self.dir_path, name), 'r') as f:
@@ -418,6 +421,17 @@ class morphologyAblation(plots):
                                                            curr_stats['kept attribute']))
                         self.split_words[name].append((num_ablated, curr_stats['pred split'] /
                                                        curr_stats['relevant']))
+                        self.correct_lemma_correct_val[name].append((num_ablated, curr_stats['correct lemma, correct value'] /
+                                                                     curr_stats['wrong word']))
+                        self.correct_lemma_wrong_val[name].append(
+                            (num_ablated, curr_stats['correct lemma, wrong value'] /
+                             curr_stats['wrong word']))
+                        self.wrong_lemma_correct_val[name].append(
+                            (num_ablated, curr_stats['wrong lemma, correct value'] /
+                             curr_stats['wrong word']))
+                        self.wrong_lemma_wrong_val[name].append(
+                            (num_ablated, curr_stats['wrong lemma, wrong value'] /
+                             curr_stats['wrong word']))
 
     def dump_results(self):
         wrong_words_path = Path(self.dir_path, 'wrong words')
@@ -425,12 +439,20 @@ class morphologyAblation(plots):
         kept_att_path = Path(self.dir_path, 'kept attribute')
         correct_val_path = Path(self.dir_path, 'correct val')
         split_words_path = Path(self.dir_path, 'split words')
-        paths = [wrong_words_path, correct_lemmas_path, kept_att_path, correct_val_path, split_words_path]
+        c_lemma_c_val_path = Path(self.dir_path, 'c lemmas c val')
+        c_lemma_w_val_path = Path(self.dir_path, 'c lemmas w val')
+        w_lemma_c_val_path = Path(self.dir_path, 'w lemmas c val')
+        w_lemma_w_val_path = Path(self.dir_path, 'w lemmas w val')
+        paths = [wrong_words_path, correct_lemmas_path, kept_att_path, correct_val_path, split_words_path,
+                 c_lemma_c_val_path, c_lemma_w_val_path, w_lemma_c_val_path, w_lemma_w_val_path]
         for p in paths:
             if not p.exists():
                 p.mkdir()
-        for p, rankings_results in zip(paths,[self.wrong_word, self.correct_lemma, self.kept_attribute,
-                                 self.correct_val, self.split_words]):
+        stats = [self.wrong_word, self.correct_lemma, self.kept_attribute,
+                            self.correct_val, self.split_words,
+                            self.correct_lemma_correct_val, self.correct_lemma_wrong_val,
+                            self.wrong_lemma_correct_val, self.wrong_lemma_wrong_val]
+        for p, rankings_results in zip(paths,stats):
             for name, res in rankings_results.items():
                 with open(Path(p,name),'wb+') as f:
                     pickle.dump(res,f)

@@ -3,13 +3,18 @@ from bokeh.plotting import figure
 from bokeh.models import CDSView, BooleanFilter, ColumnDataSource
 import pickle
 from pathlib import Path
+import numpy as np
 
-def plt_smt(lan, att, layer):
+def plt_smt(lan, att, layer, absolute: bool):
     root_path = Path('results','UM', lan, att, 'layer ' + str(layer), 'spacy')
     wrong_words_path = Path(root_path,'wrong words')
     correct_lemmas_path = Path(root_path,'correct lemmas')
     kept_att_path = Path(root_path, 'kept attribute')
     correct_val_path = Path(root_path, 'correct val')
+    c_lemma_c_val_path = Path(root_path, 'c lemmas c val')
+    c_lemma_w_val_path = Path(root_path, 'c lemmas w val')
+    w_lemma_c_val_path = Path(root_path, 'w lemmas c val')
+    w_lemma_w_val_path = Path(root_path, 'w lemmas w val')
     for ranking in ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi', 'by random']:
         colors = ["lightslategrey", "cornflowerblue", 'lightgreen', 'khaki']
         with open(Path(wrong_words_path, ranking),'rb') as f:
@@ -20,15 +25,34 @@ def plt_smt(lan, att, layer):
             kept_att_res = pickle.load(f)
         with open(Path(correct_val_path, ranking), 'rb') as f:
             correct_val_res = pickle.load(f)
-        metrics = ['wrong preds', 'correct lemmas', 'kept attribute', 'correct values']
+        with open(Path(c_lemma_c_val_path, ranking), 'rb') as f:
+            c_lemma_c_val_res = pickle.load(f)
+        with open(Path(c_lemma_w_val_path, ranking), 'rb') as f:
+            c_lemma_w_val_res = pickle.load(f)
+        with open(Path(w_lemma_c_val_path, ranking), 'rb') as f:
+            w_lemma_c_val_res = pickle.load(f)
+        with open(Path(w_lemma_w_val_path, ranking), 'rb') as f:
+            w_lemma_w_val_res = pickle.load(f)
+        # metrics = ['wrong preds', 'correct lemmas', 'kept attribute', 'correct values']
+        metrics = ['correct lemma, correct value', 'correct lemma, wrong value',
+                   'wrong lemma, correct value', 'wrong lemma, wrong value']
         num_ablated = [str(r[0]) for r in wrong_words_res]
+        wrong_preds = np.array([r[1] for r in wrong_words_res])
+        booleans = [True if wp >= 0.1 else False for wp in wrong_preds]
+        if absolute:
+            wrong_preds = np.ones_like(wrong_preds)
+        # data = {'ablated': num_ablated,
+        #         'wrong preds': [r[1] for r in wrong_words_res],
+        #         'correct lemmas': [r[1] for r in correct_lemmas_res],
+        #         'kept attribute': [r[1] for r in kept_att_res],
+        #         'correct values': [r[1] for r in correct_val_res]}
         data = {'ablated': num_ablated,
-                'wrong preds': [r[1] for r in wrong_words_res],
-                'correct lemmas': [r[1] for r in correct_lemmas_res],
-                'kept attribute': [r[1] for r in kept_att_res],
-                'correct values': [r[1] for r in correct_val_res]}
+                'correct lemma, correct value': [r[1] for r in c_lemma_c_val_res] * wrong_preds,
+                'correct lemma, wrong value': [r[1] for r in c_lemma_w_val_res] * wrong_preds,
+                'wrong lemma, correct value': [r[1] for r in w_lemma_c_val_res] * wrong_preds,
+                'wrong lemma, wrong value': [r[1] for r in w_lemma_w_val_res] * wrong_preds}
         data = ColumnDataSource(data)
-        booleans = [True if wp >= 0.1 else False for wp in data.data['wrong preds']]
+
         view = CDSView(source=data, filters=[BooleanFilter(booleans)])
         title = ' '.join([lan, att, 'layer', str(layer), ranking])
         output_file(title)
@@ -42,19 +66,22 @@ def plt_smt(lan, att, layer):
         # p.vbar(x=x, top=y, width=0.9, color="red")
         p.xgrid.grid_line_color = None
         # p.y_range.start = 0
-        p.yaxis.visible = False
+        # p.yaxis.visible = False
         p.outline_line_color = None
         p.legend.orientation = "horizontal"
         # show(p)
-        save(p, filename=Path(root_path, 'figs', ranking + '.html'))
+        abs_str = ' absolute' if absolute else ' normalized'
+        save(p, filename=Path(root_path, 'figs', ranking + abs_str + '.html'))
 
-def run_all(lan):
+def run_all(lan, absolute):
     lan_root_path = Path('results', 'UM', lan)
     atts_path = [p for p in lan_root_path.glob('*') if not p.is_file()]
     for att_path in atts_path:
         for layer in [2, 7, 12]:
-            plt_smt(lan, att_path.parts[-1], layer)
+            plt_smt(lan, att_path.parts[-1], layer, absolute)
 
 if __name__ == "__main__":
-    lan = 'rus'
-    run_all(lan)
+    languages = ['eng','rus']
+    for lan in languages:
+        for absolute in [True, False]:
+            run_all(lan, absolute)
