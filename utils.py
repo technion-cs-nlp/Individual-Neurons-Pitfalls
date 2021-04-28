@@ -50,6 +50,11 @@ def sort_neurons_by_bayes_mi(res_file_path):
                 neurons.append(int(line.split()[-1]))
     return neurons
 
+def sort_neurons_by_clusters(ranking_path):
+    with open(ranking_path,'rb') as f:
+        ranking = pickle.load(f)
+    return ranking
+
 
 def merge_sort(saved_model_path, bayes_res_file_path, k=40):
     by_avg = sort_neurons_by_avg_weights(saved_model_path).tolist()

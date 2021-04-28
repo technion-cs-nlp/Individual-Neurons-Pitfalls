@@ -303,6 +303,7 @@ if __name__ == "__main__":
         res_file_dir.mkdir(parents=True, exist_ok=True)
     linear_model_path = Path('pickles', data_name, language, attribute,
                              'best_model_whole_vector_layer_' + str(layer) + control_str + small_dataset_str)
+    cluster_ranking_path = Path('pickles', 'UM', language, attribute, str(layer), 'cluster_ranking.pkl')
     bayes_res_path = Path(res_file_dir,'bayes by bayes mi'+control_str)
     worst_bayes_res_path = Path(res_file_dir, 'bayes by worst mi'+control_str)
     bayes = Bayesian(layer=layer, control=control, small_dataset=small_dataset, data_name=data_name,
@@ -331,9 +332,11 @@ if __name__ == "__main__":
                               'bottom avg': (utils.sort_neurons_by_avg_weights, linear_model_path),
                               'bayes mi': (utils.sort_neurons_by_bayes_mi, bayes_res_path),
                               'worst mi': (utils.sort_neurons_by_bayes_mi, worst_bayes_res_path),
-                              'random': (utils.sort_neurons_by_random, None)}
+                              'random': (utils.sort_neurons_by_random, None),
+                              'top cluster': (utils.sort_neurons_by_clusters, cluster_ranking_path),
+                              'bottom cluster': (utils.sort_neurons_by_clusters, cluster_ranking_path)}
             neurons_list = get_ranking(ranking_params[ranking])
-            if ranking == 'bottom avg':
+            if ranking == 'bottom avg' or ranking == 'bottom cluster':
                 neurons_list = list(reversed(neurons_list))
             run_bayes_on_subset(bayes, neurons_list)
 

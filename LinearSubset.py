@@ -49,19 +49,16 @@ if __name__ == "__main__":
                              'best_model_whole_vector_layer_' + str(layer) + control_str + small_dataset_str)
     bayes_res_path = Path(res_file_dir, 'bayes by bayes mi'+control_str)
     worst_bayes_res_path = Path(res_file_dir, 'bayes by worst mi'+control_str)
-    # rankings = {'top avg': utils.sort_neurons_by_avg_weights(linear_model_path),
-    #             'bottom avg': list(reversed(utils.sort_neurons_by_avg_weights(linear_model_path))),
-    #             'bayes mi': utils.sort_neurons_by_bayes_mi(bayes_res_path),
-    #             'worst mi': utils.sort_neurons_by_bayes_mi(worst_bayes_res_path),
-    #             'random': utils.sort_neurons_by_random()}
-    # neurons_list = rankings[ranking]
+    cluster_ranking_path = Path('pickles', 'UM', language, attribute, str(layer), 'cluster_ranking.pkl')
     ranking_params = {'top avg': (utils.sort_neurons_by_avg_weights, linear_model_path),
                       'bottom avg': (utils.sort_neurons_by_avg_weights, linear_model_path),
                       'bayes mi': (utils.sort_neurons_by_bayes_mi, bayes_res_path),
                       'worst mi': (utils.sort_neurons_by_bayes_mi, worst_bayes_res_path),
-                      'random': (utils.sort_neurons_by_random, None)}
+                      'random': (utils.sort_neurons_by_random, None),
+                      'top cluster': (utils.sort_neurons_by_clusters, cluster_ranking_path),
+                      'bottom cluster': (utils.sort_neurons_by_clusters, cluster_ranking_path)}
     neurons_list = get_ranking(ranking_params[ranking])
-    if ranking == 'bottom avg':
+    if ranking == 'bottom avg' or ranking == 'bottom cluster':
         neurons_list = list(reversed(neurons_list))
     res_file_name = 'linear by '+args.ranking+control_str
     with open(Path(res_file_dir,res_file_name),'w+') as f:
@@ -72,10 +69,6 @@ if __name__ == "__main__":
         print('language: ', language)
         print('attribute: ', attribute)
         print('ranking: ', ranking)
-        # train_path = 'data/UD/UD_English-EWT/en_ewt-ud-train.conllu'
-        # test_path = 'data/UD/UD_English-EWT/en_ewt-ud-test.conllu'
-        # train_path = 'data/PENN TO UD/trainFromCourse.wtag'
-        # test_path = 'data/PENN TO UD/testFromCourse.wtag'
         train_path = Path('pickles', data_name, language, 'train_parsed.pkl')
         test_path = Path('pickles', data_name, language, 'test_parsed.pkl')
         print('creating dataset')
