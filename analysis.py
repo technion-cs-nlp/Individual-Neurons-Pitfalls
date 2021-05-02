@@ -265,7 +265,8 @@ class ablation(plots):
     def __init__(self, dir_path, names, layer, max_num=consts.BERT_OUTPUT_DIM):
         super(ablation, self).__init__(dir_path=dir_path, max_num=max_num, ablation=True)
         self.colors = {'by bayes mi': 'black', 'by top avg': 'red',
-                       'by bottom avg': 'orange', 'by worst mi': 'purple', 'by random': 'green'}
+                       'by bottom avg': 'orange', 'by worst mi': 'purple', 'by random': 'green',
+                       'by top cluster': 'aquamarine', 'by bottom cluster': 'lightslategray'}
         self.names = names
         self.layer = layer
         self.language = dir_path.parts[2]
@@ -313,7 +314,7 @@ class ablation(plots):
                                                       int(line.split()[-1])))
         lemma_ranks_path = Path('pickles','UM',self.language, self.attribute, str(self.layer))
         for name in self.names:
-            cur_path = Path(lemma_ranks_path, 'ablation_lemmas_ranks_by_' + name[3:] + '.pkl')
+            cur_path = Path(lemma_ranks_path, 'ablation_lemmas_ranks_by_' + name[len('sparsed by '):] + '.pkl')
             if not cur_path.exists():
                 continue
             with open(cur_path,'rb') as f:
@@ -324,6 +325,15 @@ class ablation(plots):
                 self.lemma_top_100[name] = [(num_ablated, (np.where(np.array(r) < 100)[0].size) / len(r)) for num_ablated, r in
                                            res.items()]
 
+    def dump_results(self):
+        dump_path = Path(self.dir_path, 'results.pkl')
+        res_to_dump = {'lemma_log_rank': self.lemma_log_ranks,
+                       'lemma_top_10': self.lemma_top_10,
+                       'relevant acc': self.relevant_accs}
+        with open(dump_path,'wb+') as f:
+            pickle.dump(res_to_dump,f)
+
+
     def draw_plot(self, ax, sorted_results, **kwargs):
         legend = []
         for name, res in sorted_results:
@@ -333,10 +343,11 @@ class ablation(plots):
                 max_num_idx = x_axis.index(self.max_num)
             except ValueError:
                 max_num_idx = 0
+            prefix = len('sparsed ')
             if self.layer == 2:
-                ax.plot(x_axis[max_num_idx:], y_axis[max_num_idx:], color=self.colors[name], label=name)
+                ax.plot(x_axis[max_num_idx:], y_axis[max_num_idx:], color=self.colors[name[prefix:]], label=name)
             else:
-                ax.plot(x_axis[max_num_idx:], y_axis[max_num_idx:], color=self.colors[name])
+                ax.plot(x_axis[max_num_idx:], y_axis[max_num_idx:], color=self.colors[name[prefix:]])
             legend.append(name)
         return ax, legend
 
@@ -551,9 +562,12 @@ def run_ablation(dir_path, plot_separate):
                 ablation_root_path = Path(dir_path, 'layer '+str(layer), 'ablation by attr')
                 if not ablation_root_path.exists():
                     continue
-                res_files_names = [f.parts[-1] for f in ablation_root_path.glob('*') if
-                                   f.is_file()]
+                # res_files_names = [f.parts[-1] for f in ablation_root_path.glob('*') if
+                #                    f.is_file()]
+                res_files_names = [f.name for f in ablation_root_path.glob('*') if
+                                   f.is_file() and f.name.startswith('sparsed')]
                 ab = ablation(dir_path=ablation_root_path, names=res_files_names, layer=layer, max_num=max_num)
+                ab.dump_results()
                 axs[i], legend=ab.plot_metric(axs[i], plot_separate,metric)
                 if not plot_separate:
                     axs[i].text(1.01, 0.5, 'layer ' + str(layer), transform=axs[i].transAxes)
@@ -600,11 +614,12 @@ def run_morph(dir_path, plot_separate, all_rankings):
 
 if __name__ == "__main__":
     data_name = 'UM'
-    languages = ['rus']
+    languages = ['rus', 'fin', 'bul', 'tur']
     for lan in languages:
+        print(lan)
         root_path = Path('results',data_name,lan)
         atts_path = [p for p in root_path.glob('*') if not p.is_file()]
         for att_path in atts_path:
             # run_all_probing(att_path, plot_separate=True)
-            # run_ablation(att_path, plot_separate=False)
-            run_morph(att_path, plot_separate=False, all_rankings=False)
+            run_ablation(att_path, plot_separate=False)
+            # run_morph(att_path, plot_separate=False, all_rankings=False)
