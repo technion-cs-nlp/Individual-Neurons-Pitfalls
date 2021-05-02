@@ -3,7 +3,7 @@ from pathlib import Path
 import pickle
 import numpy as np
 import itertools
-
+import sys
 
 def get_values_avg(root_path, att, layer):
     with open(Path(root_path, 'train_parsed.pkl'),'rb') as f:
@@ -42,6 +42,8 @@ if __name__ == "__main__":
     print(f'attribute: {attribute}')
     print(f'layer: {layer}')
     root_path = Path('pickles', 'UM', language)
+    if not Path(root_path, attribute).exists():
+        sys.exit('WRONG SETTING')
     values_avg = get_values_avg(root_path, attribute, layer)
     diff = get_diff_sum(values_avg)
     ranking = np.argsort(diff)[::-1].tolist()

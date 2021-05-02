@@ -40,13 +40,6 @@ if __name__ == "__main__":
         save_path.mkdir(parents=True, exist_ok=True)
     file_name = 'best_model_whole_vector_layer_' + str(layer) + control_str + small_dataset_str
     save_path = Path(save_path, file_name)
-    # train_path = 'data/PENN TO UD/trainFromCourse.wtag'
-    # test_path = 'data/PENN TO UD/testFromCourse.wtag'
-    # train_path = 'data/UD/UD_English-EWT/en_ewt-ud-train.conllu'
-    # dev_path = 'data/UD/UD_English-EWT/en_ewt-ud-dev.conllu'
-    # test_path = 'data/UD/UD_English-EWT/en_ewt-ud-test.conllu'
-    # train_path = 'data/PENN/trainFromCourse.wtag'
-    # test_path = 'data/PENN/testFromCourse.wtag'
     train_path = Path('pickles',data_name,language,'train_parsed.pkl')
     dev_path = Path('pickles', data_name, language, 'dev_parsed.pkl')
     test_path = Path('pickles', data_name, language, 'test_parsed.pkl')
