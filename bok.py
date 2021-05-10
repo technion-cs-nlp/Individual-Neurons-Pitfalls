@@ -1,9 +1,10 @@
 from bokeh.io import output_file, show, save
 from bokeh.plotting import figure
-from bokeh.models import CDSView, BooleanFilter, ColumnDataSource
+from bokeh.models import CDSView, BooleanFilter, ColumnDataSource, Label
 import pickle
 from pathlib import Path
 import numpy as np
+import pandas as pd
 
 def plt_smt(lan, att, layer, absolute: bool):
     root_path = Path('results','UM', lan, att, 'layer ' + str(layer), 'spacy')
@@ -38,7 +39,8 @@ def plt_smt(lan, att, layer, absolute: bool):
                    'wrong lemma, correct value', 'wrong lemma, wrong value']
         num_ablated = [str(r[0]) for r in wrong_words_res]
         wrong_preds = np.array([r[1] for r in wrong_words_res])
-        booleans = [True if wp >= 0.1 else False for wp in wrong_preds]
+        booleans = [True if wp >= 0.05 else False for wp in wrong_preds]
+        start_point = booleans.index(True)
         if absolute:
             wrong_preds = np.ones_like(wrong_preds)
         # data = {'ablated': num_ablated,
@@ -51,6 +53,12 @@ def plt_smt(lan, att, layer, absolute: bool):
                 'correct lemma, wrong value': [r[1] for r in c_lemma_w_val_res] * wrong_preds,
                 'wrong lemma, correct value': [r[1] for r in w_lemma_c_val_res] * wrong_preds,
                 'wrong lemma, wrong value': [r[1] for r in w_lemma_w_val_res] * wrong_preds}
+        correct_lemmas_sum = np.array([clcv + clwv for i, (clcv, clwv) in enumerate(zip(
+            data['correct lemma, correct value'], data['correct lemma, wrong value'])) if booleans[i]])
+        max_cl = correct_lemmas_sum.max()
+        label = Label(text=f'max correct lemmas: {max_cl:.2f}', x=770, y=370, x_units='screen', y_units='screen',
+                      render_mode='css', border_line_color='black',
+                      border_line_alpha=1.0, background_fill_color='white', background_fill_alpha=1.0)
         data = ColumnDataSource(data)
 
         view = CDSView(source=data, filters=[BooleanFilter(booleans)])
@@ -61,7 +69,7 @@ def plt_smt(lan, att, layer, absolute: bool):
                    toolbar_location=None, tools="hover", tooltips="$name @ablated: @$name{(0.0000)}")
         p.xaxis.major_label_orientation = 1.2
         p.vbar_stack(metrics, x='ablated', width=0.9, source=data, color=colors, legend_label=metrics, view=view)
-
+        p.add_layout(label)
 
         # p.vbar(x=x, top=y, width=0.9, color="red")
         p.xgrid.grid_line_color = None
@@ -72,6 +80,7 @@ def plt_smt(lan, att, layer, absolute: bool):
         # show(p)
         abs_str = ' absolute' if absolute else ' normalized'
         save(p, filename=Path(root_path, 'figs', ranking + abs_str + '.html'))
+        # return start_point, max_cl
 
 def run_all(lan, absolute):
     lan_root_path = Path('results', 'UM', lan)
