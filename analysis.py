@@ -50,7 +50,7 @@ class plots():
         def sort_plots_by_name(l):
             return l[0]
         def sort_plots_by_auc(l):
-            return self.test_auc[l[0]]
+            return self.test_acc_auc[l[0]]
         # sorted_results.sort(key=sort_plots_by_name)
         if auc:
             sorted_results.sort(key=sort_plots_by_auc,reverse=True)
@@ -88,7 +88,8 @@ class probing(plots):
                         'bayes by top avg': 'blue', 'linear by random': 'olive',
                        'linear by bottom avg': 'palegreen', 'bayes by random': 'green',
                        'bayes': 'black', 'linear': 'red', 'by bayes mi': 'black', 'by top avg': 'red',
-                       'by bottom avg': 'orange', 'by worst mi': 'purple', 'by random': 'green'}
+                       'by bottom avg': 'orange', 'by worst mi': 'purple', 'by random': 'green',
+                       'by top cluster': 'aquamarine', 'by bottom cluster': 'lightslategray'}
         self.names = names
         # self.lca = 'with lca' if 'lca' in ''.join(names) else 'no lca'
         self.layer = layer
@@ -109,7 +110,8 @@ class probing(plots):
         self.test_acc_results = {name: [] for name in self.names if 'original' not in str(name)}
         self.test_mi_results = {name: [] for name in self.names if 'original' not in str(name)}
         self.test_nmi_results = {name: [] for name in self.names if 'original' not in str(name)}
-        self.test_auc = {}
+        self.test_acc_auc = {}
+        self.test_sel_auc = {}
         for name in self.names:
             if 'original' in name:
                 continue
@@ -127,7 +129,7 @@ class probing(plots):
                         self.train_nmi_results[name].append(round(float(line.split()[-1]), ndigits=4))
                     if 'nmi on test' in line:
                         self.test_nmi_results[name].append(round(float(line.split()[-1]), ndigits=4))
-            self.test_auc[name] = np.trapz(self.test_acc_results[name][:self.max_num], dx=1)
+            self.test_acc_auc[name] = np.trapz(self.test_acc_results[name][:self.max_num], dx=1)
         control_names = [name + '_control' for name in self.names
                          if Path(self.dir_path, name + '_control').is_file()]
         self.train_controls = {name: [] for name in control_names}
@@ -149,6 +151,13 @@ class probing(plots):
         self.train_selectivities = {control_name[:-8]: [] for control_name in control_names}
         self.test_selectivities = {control_name[:-8]: [] for control_name in control_names}
 
+    def dump_results(self):
+        dump_path = Path(self.dir_path, 'figs', str(self.max_num), 'results.pkl')
+        res_to_dump = {'acc_auc': self.test_acc_auc,
+                       'sel_auc': self.test_sel_auc}
+        with open(dump_path,'wb+') as f:
+            pickle.dump(res_to_dump,f)
+
     def draw_plot(self, ax, sorted_results, auc=False):
         legend = []
         for name, res in sorted_results:
@@ -158,7 +167,7 @@ class probing(plots):
                 ax.plot(res[:self.max_num], color=self.colors[name], label=name)
             else:
                 ax.plot(res[:self.max_num], color=self.colors[name])
-            name_for_legend = ' '.join([name, '(AUC:{:.2f})'.format(self.test_auc[name])]) if auc else name
+            name_for_legend = ' '.join([name, '(AUC:{:.2f})'.format(self.test_acc_auc[name])]) if auc else name
             legend.append(name_for_legend)
         return ax, legend
 
@@ -193,6 +202,7 @@ class probing(plots):
         for name, res in self.test_selectivities.items():
             for acc, cont in zip(self.test_acc_for_control[name], self.test_controls[name + '_control']):
                 res.append(acc - cont)
+            self.test_sel_auc[name] = np.trapz(self.test_selectivities[name][:self.max_num], dx=1)
         ax, legend = self.prep_plot(title, self.test_selectivities, 'test selectivity', 'neurons', ax, to_save)
         return ax,legend
 
@@ -507,7 +517,7 @@ class morphologyAblation(plots):
 def run_all_probing(dir_path, plot_separate):
     axs = [0] * 3
     small_dataset = False
-    max_nums = [50, 150] if plot_separate else [150]
+    max_nums = [10, 50, 150] if plot_separate else [150]
     # model_types = ['all','linear','bayes'] if plot_separate else ['all']
     model_types = ['all']
     for metric in ['acc','nmi','selectivity','ranking avg', 'classifiers avg']:
@@ -540,6 +550,9 @@ def run_all_probing(dir_path, plot_separate):
                     if not plot_separate:
                         axs[i], legend = res
                         axs[i].text(1.01, 0.5, 'layer ' + str(layer), transform=axs[i].transAxes)
+                    if metric == 'selectivity':
+                        plotting.dump_results()
+
         if not plot_separate:
             for ax in axs:
                 ax.label_outer()
@@ -614,12 +627,12 @@ def run_morph(dir_path, plot_separate, all_rankings):
 
 if __name__ == "__main__":
     data_name = 'UM'
-    languages = ['rus', 'fin', 'bul', 'tur']
+    languages = ['eng','ara','hin','rus', 'fin', 'bul', 'tur']
     for lan in languages:
         print(lan)
         root_path = Path('results',data_name,lan)
         atts_path = [p for p in root_path.glob('*') if not p.is_file()]
         for att_path in atts_path:
-            # run_all_probing(att_path, plot_separate=True)
-            run_ablation(att_path, plot_separate=False)
+            run_all_probing(att_path, plot_separate=True)
+            # run_ablation(att_path, plot_separate=False)
             # run_morph(att_path, plot_separate=False, all_rankings=False)
