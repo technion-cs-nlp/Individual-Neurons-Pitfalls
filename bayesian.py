@@ -335,7 +335,10 @@ if __name__ == "__main__":
                               'random': (utils.sort_neurons_by_random, None),
                               'top cluster': (utils.sort_neurons_by_clusters, cluster_ranking_path),
                               'bottom cluster': (utils.sort_neurons_by_clusters, cluster_ranking_path)}
-            neurons_list = get_ranking(ranking_params[ranking])
+            try:
+                neurons_list = get_ranking(ranking_params[ranking])
+            except FileNotFoundError:
+                sys.exit('WRONG SETTING')
             if ranking == 'bottom avg' or ranking == 'bottom cluster':
                 neurons_list = list(reversed(neurons_list))
             run_bayes_on_subset(bayes, neurons_list)
