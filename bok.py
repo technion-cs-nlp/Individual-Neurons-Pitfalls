@@ -16,7 +16,8 @@ def plt_smt(lan, att, layer, absolute: bool):
     c_lemma_w_val_path = Path(root_path, 'c lemmas w val')
     w_lemma_c_val_path = Path(root_path, 'w lemmas c val')
     w_lemma_w_val_path = Path(root_path, 'w lemmas w val')
-    for ranking in ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi', 'by random']:
+    res = {}
+    for ranking in ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi', 'by random', 'by top cluster', 'by bottom cluster']:
         colors = ["lightslategrey", "cornflowerblue", 'lightgreen', 'khaki']
         with open(Path(wrong_words_path, ranking),'rb') as f:
             wrong_words_res = pickle.load(f)
@@ -53,10 +54,12 @@ def plt_smt(lan, att, layer, absolute: bool):
                 'correct lemma, wrong value': [r[1] for r in c_lemma_w_val_res] * wrong_preds,
                 'wrong lemma, correct value': [r[1] for r in w_lemma_c_val_res] * wrong_preds,
                 'wrong lemma, wrong value': [r[1] for r in w_lemma_w_val_res] * wrong_preds}
-        correct_lemmas_sum = np.array([clcv + clwv for i, (clcv, clwv) in enumerate(zip(
-            data['correct lemma, correct value'], data['correct lemma, wrong value'])) if booleans[i]])
-        max_cl = correct_lemmas_sum.max()
-        label = Label(text=f'max correct lemmas: {max_cl:.2f}', x=770, y=370, x_units='screen', y_units='screen',
+        # correct_lemmas_sum = np.array([clcv + clwv for i, (clcv, clwv) in enumerate(zip(
+        #     data['correct lemma, correct value'], data['correct lemma, wrong value'])) if booleans[i]])
+        clwv = np.array(data['correct lemma, wrong value'])
+        max_clwv, argmax_clwv = clwv[booleans].max(), clwv[booleans].argmax()
+        argmax_clwv = data['ablated'][start_point + argmax_clwv]
+        label = Label(text=f'max correct lemma wrong value: {max_clwv:.2f}, argmax: {argmax_clwv}', x=590, y=370, x_units='screen', y_units='screen',
                       render_mode='css', border_line_color='black',
                       border_line_alpha=1.0, background_fill_color='white', background_fill_alpha=1.0)
         data = ColumnDataSource(data)
@@ -80,17 +83,69 @@ def plt_smt(lan, att, layer, absolute: bool):
         # show(p)
         abs_str = ' absolute' if absolute else ' normalized'
         save(p, filename=Path(root_path, 'figs', ranking + abs_str + '.html'))
-        # return start_point, max_cl
+        res[ranking] = {'max': max_clwv, 'argmax': argmax_clwv}
+    return res
+
 
 def run_all(lan, absolute):
     lan_root_path = Path('results', 'UM', lan)
     atts_path = [p for p in lan_root_path.glob('*') if not p.is_file()]
+    res = {}
     for att_path in atts_path:
+        res[att_path.parts[-1]] = {}
         for layer in [2, 7, 12]:
-            plt_smt(lan, att_path.parts[-1], layer, absolute)
+            res[att_path.parts[-1]][layer] = plt_smt(lan, att_path.parts[-1], layer, absolute)
+    return res
+
+def create_dataset():
+    languages = ['eng', 'rus']
+    attributes = ['Number', 'Tense', 'Aspect', 'Animacy', 'Case', 'Gender and Noun Class', 'Voice']
+    layers = [2, 7, 12]
+    rankings = ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi', 'by random',
+                'by top cluster', 'by bottom cluster']
+    ratios = ['absolute', 'normalized']
+    metrics = ['max', 'argmax']
+    cols = pd.MultiIndex.from_product([languages, attributes, layers, rankings])
+    rows = pd.MultiIndex.from_product([ratios, metrics])
+    df = pd.DataFrame(index=rows, columns=cols).sort_index().sort_index(axis=1)
+    with open(Path('results', 'UM', 'max_clwv.pkl'), 'rb') as f:
+        res = pickle.load(f)
+    for lan, l_res in res.items():
+        for ratio, ratio_res in l_res.items():
+            for att, a_res in ratio_res.items():
+                if att == 'Part of Speech':
+                    continue
+                for layer, layer_res in a_res.items():
+                    for ranking, r_res in layer_res.items():
+                        for metric, m_res in r_res.items():
+                            df[(lan, att, layer, ranking)][(ratio, metric)] = m_res
+    idx = pd.IndexSlice
+    for lang in languages:
+        print(f'{lang}:')
+        for ranking in rankings:
+            relevant_data = df.loc[idx['absolute', 'max'], idx[[lang], attributes, layers, [ranking]]]
+            print(f'{ranking}:')
+            print(round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
+    print('all:')
+    for ranking in rankings:
+            relevant_data = df.loc[idx['absolute', 'max'], idx[languages, attributes, layers, [ranking]]]
+            print(f'{ranking}:')
+            print(round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
+    print(df)
+
+def plot_and_dump(langs):
+    res = {}
+    for lan in languages:
+        res[lan] = {}
+        for absolute in [True, False]:
+            res[lan]['absolute' if absolute else 'normalized'] = run_all(lan, absolute)
+    with open(Path('results', 'UM', 'max_clwv.pkl'),'wb+') as f:
+        pickle.dump(res, f)
+    return res
 
 if __name__ == "__main__":
     languages = ['eng','rus']
-    for lan in languages:
-        for absolute in [True, False]:
-            run_all(lan, absolute)
+    # plot_and_dump(languages)
+    create_dataset()
+
+
