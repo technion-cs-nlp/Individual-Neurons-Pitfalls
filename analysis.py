@@ -67,7 +67,7 @@ class plots():
             box = ax.get_position()
             if auc:
                 ax.set_position([box.x0, box.y0, box.width, box.height * 0.85])
-                ax.legend(legend, ncol=2, loc='upper center', prop={'size': 9}, bbox_to_anchor=(0.5,1.29))
+                ax.legend(legend, ncol=3, loc='upper center', prop={'size': 9}, bbox_to_anchor=(0.5,1.29))
             else:
                 ax.set_position([box.x0, box.y0, box.width * 0.75, box.height])
                 ax.legend(legend, loc='center left', bbox_to_anchor=(1, 0.5))
@@ -87,6 +87,8 @@ class probing(plots):
                        'bayes by bottom avg': 'orange', 'linear by worst mi': 'purple',
                         'bayes by top avg': 'blue', 'linear by random': 'olive',
                        'linear by bottom avg': 'palegreen', 'bayes by random': 'green',
+                       'linear by top cluster': 'aquamarine', 'linear by bottom cluster': 'skyblue',
+                       'bayes by top cluster': 'khaki', 'bayes by bottom cluster': 'thistle',
                        'bayes': 'black', 'linear': 'red', 'by bayes mi': 'black', 'by top avg': 'red',
                        'by bottom avg': 'orange', 'by worst mi': 'purple', 'by random': 'green',
                        'by top cluster': 'aquamarine', 'by bottom cluster': 'lightslategray'}
@@ -355,7 +357,8 @@ class ablation(plots):
                 max_num_idx = 0
             prefix = len('sparsed ')
             if self.layer == 2:
-                ax.plot(x_axis[max_num_idx:], y_axis[max_num_idx:], color=self.colors[name[prefix:]], label=name)
+                ax.plot(x_axis[max_num_idx:], y_axis[max_num_idx:], color=self.colors[name[prefix:]],
+                        label=name[prefix:] if name.startswith('sparsed') else name)
             else:
                 ax.plot(x_axis[max_num_idx:], y_axis[max_num_idx:], color=self.colors[name[prefix:]])
             legend.append(name)
@@ -383,8 +386,8 @@ class morphologyAblation(plots):
                        'split words': 'green'}
         self.names = names
         # bayes doesn't start from 0 ablated and we need the num of errors for 0 ablated
-        assert self.names[0] == 'by bayes mi' and self.names[3] == 'by top avg'
-        self.names[0], self.names[3] = 'by top avg', 'by bayes mi'
+        assert self.names[0] == 'by bayes mi' and self.names[4] == 'by top avg'
+        self.names[0], self.names[4] = 'by top avg', 'by bayes mi'
         self.language = dir_path.parts[2]
         self.attribute = dir_path.parts[3]
         self.layer = layer
@@ -562,9 +565,13 @@ def run_all_probing(dir_path, plot_separate):
 
 def run_ablation(dir_path, plot_separate):
     axs = [0]*3
+    metrics = ['total accuracy', 'loss', 'ablated words accuracy', 'non-ablated words accuracy',
+               'avg lemma rank', 'avg lemma log rank', 'lemmas in top 10',
+               'lemmas in top 100']
     # for metric in ['total accuracy', 'loss', 'ablated words accuracy', 'non-ablated words accuracy',
     #                'lemma predictions']:
-    for metric in ['avg lemma rank', 'avg lemma log rank', 'lemmas in top 10', 'lemmas in top 100']:
+    # for metric in ['avg lemma rank', 'avg lemma log rank', 'lemmas in top 10', 'lemmas in top 100']:
+    for metric in metrics:
         if not plot_separate:
             fig, axs = plt.subplots(3, figsize=[8.4, 6.8])
             fig.suptitle(' '.join(['ablation',dir_path.parts[-2], dir_path.parts[-1], metric, 'per layer']))
@@ -595,7 +602,7 @@ def run_morph(dir_path, plot_separate, all_rankings):
     num_subplots = 3
     axs = [0] * num_subplots
     iter_list = ['wrong words', 'correct lemmas', 'kept attribute', 'correct values', 'split words'] if all_rankings \
-        else ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi', 'by random']
+        else ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi', 'by random', 'by top cluster', 'by bottom cluster']
     for name in iter_list:
         if not plot_separate:
             fig, axs = plt.subplots(num_subplots, figsize=[8.4, 6.8])
@@ -627,7 +634,7 @@ def run_morph(dir_path, plot_separate, all_rankings):
 
 if __name__ == "__main__":
     data_name = 'UM'
-    languages = ['eng','ara','hin','rus', 'fin', 'bul', 'tur']
+    languages = ['ara']
     for lan in languages:
         print(lan)
         root_path = Path('results',data_name,lan)
