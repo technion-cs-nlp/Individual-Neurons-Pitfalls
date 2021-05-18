@@ -18,7 +18,7 @@ def load_res(lan, att, layer, ablation: bool, max_num=None):
 
 def create_empty_df(ablation: bool):
     root_path = Path('results','UM')
-    lans = {p.name for p in root_path.glob('*') if p.is_dir() and p.name != 'tur'}
+    lans = {p.name for p in root_path.glob('*') if p.is_dir()}
     layers = [2, 7, 12]
     max_nums = [] if ablation else [10, 50, 150]
     all_atts, all_mets, all_rankings, all_abl = set(), set(), set(), set()
@@ -57,7 +57,7 @@ def fill_df(df: pd.DataFrame, ablation: bool):
     root_path = Path('results', 'UM')
     layers = [2, 7, 12]
     max_nums = [] if ablation else [10, 50, 150]
-    lans = {p.name for p in root_path.glob('*') if p.is_dir() and p.name != 'tur'}
+    lans = {p.name for p in root_path.glob('*') if p.is_dir()}
     for lan in progressbar(lans):
         lan_path = Path(root_path, lan)
         atts = [p.name for p in lan_path.glob('*') if p.is_dir()]

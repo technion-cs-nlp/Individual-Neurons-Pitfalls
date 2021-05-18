@@ -17,7 +17,8 @@ class morphCompare():
         self.layer = layer
         self.ranking = ranking
         parsers = {'eng':'en_core_web_sm',
-                   'rus':'ru_core_news_sm'}
+                   'rus':'ru_core_news_sm',
+                   'spa':'es_core_news_sm'}
         self.parser = spacy.load(parsers[self.language])
         # self.parser.tokenizer = BertTokenizer(self.parser.vocab, "bert-base-multilingual-cased-vocab.txt")
         self.true_morph, self.true_words_to_tokens, self.true_tokens_to_words = self.parse_true()

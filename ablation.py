@@ -193,7 +193,8 @@ if __name__ == "__main__":
                   'rus':'data/UM/rus/ru_gsd-um-test.conllu',
                   'fin':'data/UM/fin/fi_tdt-um-test.conllu',
                   'bul': 'data/UM/bul/bg_btb-um-test.conllu',
-                  'tur': 'data/UM/tur/tr_imst-um-test.conllu'}
+                  'tur': 'data/UM/tur/tr_imst-um-test.conllu',
+                  'spa': 'data/UM/spa/es_gsd-um-test.conllu'}
     data_name = 'UM'
     parser = ArgumentParser()
     parser.add_argument('-language', type=str)
