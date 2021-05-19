@@ -35,7 +35,6 @@ def collate_fn(batch):
 def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=False, ranking='', step=0):
     set_name = 'test_'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # model = MLM() if layer == 12 else BertFromMiddle(layer) #TODO debug for layer 12
     model = BertFromMiddle(layer)
     skipped = []
     # model = BertFromMiddle(layer)
@@ -44,9 +43,6 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
         features_path = Path(dump_path, set_name + 'features_layer_'+str(layer))
         with open(features_path, 'rb') as f:
             set_features = pickle.load(f)
-            # TODO debug for layer 12
-            # if layer == 12:
-            #     set_features = {k:v[1:-1] for k,v in set_features.items()}
         sent_path = Path(dump_path,'new_'+ set_name+'sentences.pkl')
         # sent_path = Path(dump_path,set_name+'sentences.pkl')
         with open(sent_path, 'rb') as f:
@@ -59,10 +55,6 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
             words_per_attribute_path = Path(dump_path, set_name + 'words_per_attribute.pkl')
             with open(words_per_attribute_path,'rb') as f:
                 words_per_att = pickle.load(f)
-                # TODO debug for layer 12
-                # if layer == 12:
-                #     no_pad_words_per_att = {i: {att: [w-1 for w in l] for att, l in d.items()} for i,d in words_per_att.items()}
-                #     words_per_att = no_pad_words_per_att
             lemmas_path = Path(dump_path, set_name + 'lemmas.pkl')
             with open(lemmas_path, 'rb') as f:
                 lemmas = pickle.load(f)
@@ -86,8 +78,6 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
         neurons_list = list(missing_neurons)+neurons_list
     decoded_outputs, decoded_tokens, lemmas_ranks = {}, {}, {}
     for num_ablated in progressbar(range(missing_num, consts.BERT_OUTPUT_DIM, step)):
-    # for num_ablated in progressbar(range(missing_num, consts.BERT_OUTPUT_DIM)):
-    # for num_ablated in progressbar(range(500, consts.BERT_OUTPUT_DIM, step)): #TODO
         print('neuron {}'.format(neurons_list[num_ablated]))
         counters = dict.fromkeys(['total_loss', 'total_correct', 'total_tokens', 'relevant_correct',
                                   'total_relevant', 'total_correct_relevant',
@@ -109,38 +99,20 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
             sentences = sentences_and_features[0]
             # features = torch.cat(sentences_and_features[1])
             relevant_indices = []
-            # TODO debug for layer 12
-            if layer == 11:
-                if attribute == '':
-                    features = torch.cat(sentences_and_features[1])
-                    features[:, neurons_to_ablate] = 0.
-                else:
-                    features = sentences_and_features[1]
-                    num_features_before = 0
-                    for i,f in enumerate(features):
-                        if words_per_att[sentence_idx].get(attribute):
-                            relevant_indices.extend([num_features_before + idx for idx in words_per_att[sentence_idx][attribute]])
-                            relevant_words_features = f[words_per_att[sentence_idx][attribute]]
-                            relevant_words_features[:, neurons_to_ablate] = 0.
-                            f[words_per_att[sentence_idx][attribute]] = relevant_words_features
-                        sentence_idx += 1
-                        num_features_before += f.shape[0]
-                    features = torch.cat(features)
+            features = sentences_and_features[1]
+            if attribute == '':
+                for f in features:
+                    f[1:-1, neurons_to_ablate] = 0.
             else:
-                features = sentences_and_features[1]
-                if attribute == '':
-                    for f in features:
-                        f[1:-1, neurons_to_ablate] = 0.
-                else:
-                    for f in features:
-                        # place an empty set in case no words have the attribute
-                        relevant_indices.append(set())
-                        if words_per_att[sentence_idx].get(attribute):
-                            relevant_indices[-1]=(set(words_per_att[sentence_idx][attribute]))
-                            relevant_words_features = f[words_per_att[sentence_idx][attribute]]
-                            relevant_words_features[:, neurons_to_ablate] = 0.
-                            f[words_per_att[sentence_idx][attribute]] = relevant_words_features
-                        sentence_idx+=1
+                for f in features:
+                    # place an empty set in case no words have the attribute
+                    relevant_indices.append(set())
+                    if words_per_att[sentence_idx].get(attribute):
+                        relevant_indices[-1]=(set(words_per_att[sentence_idx][attribute]))
+                        relevant_words_features = f[words_per_att[sentence_idx][attribute]]
+                        relevant_words_features[:, neurons_to_ablate] = 0.
+                        f[words_per_att[sentence_idx][attribute]] = relevant_words_features
+                    sentence_idx+=1
             batch_lemmas = lemmas[sentence_idx - len(sentences):sentence_idx]
             res = model(sentences, features, relevant_indices, batch_lemmas)
             # loss, correct_preds, num_tokens, correct_relevant, num_relevant = res
