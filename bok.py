@@ -17,8 +17,11 @@ def plt_smt(lan, att, layer, absolute: bool):
     w_lemma_c_val_path = Path(root_path, 'w lemmas c val')
     w_lemma_w_val_path = Path(root_path, 'w lemmas w val')
     res = {}
-    for ranking in ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi', 'by random', 'by top cluster', 'by bottom cluster']:
+    for ranking in ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi', 'by random',
+                    'by top cluster', 'by bottom cluster', 'by top cluster_intervention', 'by bottom cluster_intervention']:
         colors = ["lightslategrey", "cornflowerblue", 'lightgreen', 'khaki']
+        if not Path(wrong_words_path, ranking).exists():
+            continue
         with open(Path(wrong_words_path, ranking),'rb') as f:
             wrong_words_res = pickle.load(f)
         with open(Path(correct_lemmas_path, ranking),'rb') as f:
@@ -92,19 +95,20 @@ def run_all(lan, absolute):
     atts_path = [p for p in lan_root_path.glob('*') if not p.is_file()]
     res = {}
     for att_path in atts_path:
-        res[att_path.parts[-1]] = {}
+        if att_path.name == 'Part of Speech':
+            continue
+        res[att_path.name] = {}
         for layer in [2, 7, 12]:
-            res[att_path.parts[-1]][layer] = plt_smt(lan, att_path.parts[-1], layer, absolute)
+            res[att_path.name][layer] = plt_smt(lan, att_path.name, layer, absolute)
     return res
 
-def create_dataset():
-    languages = ['eng', 'rus']
-    attributes = ['Number', 'Tense', 'Aspect', 'Animacy', 'Case', 'Gender and Noun Class', 'Voice']
+def create_dataset(languages):
+    attributes = ['Number', 'Tense', 'Gender and Noun Class']
     layers = [2, 7, 12]
     rankings = ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi', 'by random',
-                'by top cluster', 'by bottom cluster']
+                'by top cluster', 'by bottom cluster', 'by top cluster_intervention', 'by bottom cluster_intervention']
     ratios = ['absolute', 'normalized']
-    metrics = ['max', 'argmax']
+    metrics = ['max, argmax']
     cols = pd.MultiIndex.from_product([languages, attributes, layers, rankings])
     rows = pd.MultiIndex.from_product([ratios, metrics])
     df = pd.DataFrame(index=rows, columns=cols).sort_index().sort_index(axis=1)
@@ -117,25 +121,38 @@ def create_dataset():
                     continue
                 for layer, layer_res in a_res.items():
                     for ranking, r_res in layer_res.items():
-                        for metric, m_res in r_res.items():
-                            df[(lan, att, layer, ranking)][(ratio, metric)] = m_res
+                        df[(lan, att, layer, ranking)][(ratio, 'max, argmax')] = round(r_res['max'],2), r_res['argmax']
+                        # df[(lan, att, layer, ranking)][(ratio, 'argmax')] = r_res['argmax']
     idx = pd.IndexSlice
-    for lang in languages:
-        print(f'{lang}:')
-        for ranking in rankings:
-            relevant_data = df.loc[idx['absolute', 'max'], idx[[lang], attributes, layers, [ranking]]]
-            print(f'{ranking}:')
-            print(round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
+    # for lang in languages:
+    #     print(f'{lang}:')
+    #     for ranking in rankings:
+    #         relevant_data = df.loc[idx['absolute', 'max, argmax'], idx[[lang], attributes, layers, [ranking]]]
+    #         # print(f'{ranking}:')
+    #         # print(round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
+
+    # for ranking in rankings:
+    #     relevant_data = df.loc[idx['absolute', 'max, argmax'], idx[languages, attributes, layers, [ranking]]]
+    #     print(f'{ranking}:')
+    #     print(relevant_data)
+    #     # print('avg:')
+    #     # print(round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
+    for att in attributes:
+        relevant_data = df.loc[idx['absolute', 'max, argmax'], idx[languages, [att], layers, rankings]]
+        print(f'{att}:')
+        print('absolute:')
+        print(relevant_data)
+        relevant_data = df.loc[idx['normalized', 'max, argmax'], idx[languages, [att], layers, rankings]]
+        print('normalized:')
+        print(relevant_data)
+        # print('avg:')
+        # print(round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
     print('all:')
-    for ranking in rankings:
-            relevant_data = df.loc[idx['absolute', 'max'], idx[languages, attributes, layers, [ranking]]]
-            print(f'{ranking}:')
-            print(round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
     print(df)
 
 def plot_and_dump(langs):
     res = {}
-    for lan in languages:
+    for lan in langs:
         res[lan] = {}
         for absolute in [True, False]:
             res[lan]['absolute' if absolute else 'normalized'] = run_all(lan, absolute)
@@ -144,8 +161,8 @@ def plot_and_dump(langs):
     return res
 
 if __name__ == "__main__":
-    languages = ['eng','rus']
-    # plot_and_dump(languages)
-    create_dataset()
+    languages = ['eng', 'spa']
+    plot_and_dump(languages)
+    create_dataset(languages)
 
 
