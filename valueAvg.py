@@ -18,8 +18,9 @@ def get_values_avg(root_path, att, layer):
     for word in parsed_train:
         if att in word['attributes'] and word['attributes'][att] in relevant_vals:
             embeddings_by_val[word['attributes'][att]].append(word['embedding'][layer])
-    avg_embeds = [np.mean(embeds, axis=0) for embeds in embeddings_by_val.values()]
-    return avg_embeds
+    avg_embeds_with_labels = {label: np.mean(embeds, axis=0) for label, embeds in embeddings_by_val.items()}
+    avg_embeds = list(avg_embeds_with_labels.values())
+    return avg_embeds, avg_embeds_with_labels
 
 def get_diff_sum(arr):
     diff = np.zeros_like(arr[0])
@@ -44,7 +45,7 @@ if __name__ == "__main__":
     root_path = Path('pickles', 'UM', language)
     if not Path(root_path, attribute).exists():
         sys.exit('WRONG SETTING')
-    values_avg = get_values_avg(root_path, attribute, layer)
+    values_avg, values_avg_with_labels = get_values_avg(root_path, attribute, layer)
     diff = get_diff_sum(values_avg)
     ranking = np.argsort(diff)[::-1].tolist()
     dump_dir = Path(root_path, attribute, str(layer))
@@ -52,4 +53,6 @@ if __name__ == "__main__":
         dump_dir.mkdir()
     with open(Path(dump_dir, 'cluster_ranking.pkl'), 'wb+') as f:
         pickle.dump(ranking, f)
+    with open(Path(dump_dir, 'avg_embeddings_by_label.pkl'), 'wb+') as f:
+        pickle.dump(values_avg_with_labels, f)
     print('dumped')
