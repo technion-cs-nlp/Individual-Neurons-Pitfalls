@@ -32,12 +32,12 @@ def collate_fn(batch):
     features = [item[1] for item in batch]
     return [sentences, features]
 
-def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=False, ranking='', step=0):
+def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=False, ranking='', step=0,
+           intervention=False):
     set_name = 'test_'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = BertFromMiddle(layer)
     skipped = []
-    # model = BertFromMiddle(layer)
     if data_name == 'UM':
         dump_path = Path('pickles', data_name, language)
         features_path = Path(dump_path, set_name + 'features_layer_'+str(layer))
@@ -58,6 +58,10 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
             lemmas_path = Path(dump_path, set_name + 'lemmas.pkl')
             with open(lemmas_path, 'rb') as f:
                 lemmas = pickle.load(f)
+            if intervention:
+                values_avg_path = Path(dump_path, attribute, str(layer), 'avg_embeddings_by_label.pkl')
+                with open(values_avg_path,'rb') as f:
+                    values_avg = pickle.load(f)
             # parsed_data_path = Path(dump_path, set_name+'parsed.pkl')
             # with open(parsed_data_path,'rb') as f:
             #     parsed_data = pickle.load(f)
@@ -108,10 +112,25 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
                     # place an empty set in case no words have the attribute
                     relevant_indices.append(set())
                     if words_per_att[sentence_idx].get(attribute):
-                        relevant_indices[-1]=(set(words_per_att[sentence_idx][attribute]))
-                        relevant_words_features = f[words_per_att[sentence_idx][attribute]]
-                        relevant_words_features[:, neurons_to_ablate] = 0.
-                        f[words_per_att[sentence_idx][attribute]] = relevant_words_features
+                        if intervention:
+                            indices_per_label = words_per_att[sentence_idx][attribute]
+                            possible_labels = list(values_avg.keys())
+                            for label, indices in indices_per_label.items():
+                                # ignore labels that have been filtered in parsing (less than 100 examples in some set)
+                                if label not in values_avg.keys():
+                                    continue
+                                relevant_indices[-1].update(indices)
+                                relevant_words_features = f[indices]
+                                relevant_words_features[:, neurons_to_ablate] -= values_avg[label][tuple(neurons_to_ablate)]
+                                next_label = possible_labels[(possible_labels.index(label) + 1) % len(possible_labels)]
+                                relevant_words_features[:, neurons_to_ablate] += values_avg[next_label][tuple(neurons_to_ablate)]
+                                f[indices] = relevant_words_features
+                        else:
+                            rel_ind = [idx for idxs in words_per_att[sentence_idx][attribute].values() for idx in idxs]
+                            relevant_indices[-1]= set(rel_ind)
+                            relevant_words_features = f[rel_ind]
+                            relevant_words_features[:, neurons_to_ablate] = 0.
+                            f[rel_ind] = relevant_words_features
                     sentence_idx+=1
             batch_lemmas = lemmas[sentence_idx - len(sentences):sentence_idx]
             res = model(sentences, features, relevant_indices, batch_lemmas)
@@ -152,9 +171,10 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
     outputs_dir = Path('pickles','UM',language,attribute,str(layer))
     if not outputs_dir.exists():
         outputs_dir.mkdir(parents=True, exist_ok=True)
-    with open(Path(outputs_dir,'ablation_token_outputs_by_'+ranking+'.pkl'),'wb+') as f:
+    intervention_str = '_intervention' if intervention else ''
+    with open(Path(outputs_dir,'ablation_token_outputs_by_'+ranking+intervention_str+'.pkl'),'wb+') as f:
         pickle.dump(decoded_tokens, f)
-    with open(Path(outputs_dir, 'ablation_lemmas_ranks_by_'+ranking+'.pkl'),'wb+') as f:
+    with open(Path(outputs_dir, 'ablation_lemmas_ranks_by_'+ranking+intervention_str+'.pkl'),'wb+') as f:
         pickle.dump(lemmas_ranks,f)
 
 if __name__ == "__main__":
@@ -166,7 +186,8 @@ if __name__ == "__main__":
                   'fin':'data/UM/fin/fi_tdt-um-test.conllu',
                   'bul': 'data/UM/bul/bg_btb-um-test.conllu',
                   'tur': 'data/UM/tur/tr_imst-um-test.conllu',
-                  'spa': 'data/UM/spa/es_gsd-um-test.conllu'}
+                  'spa': 'data/UM/spa/es_gsd-um-test.conllu',
+                  'fra': 'data/UM/fra/fr_gsd-um-test.conllu'}
     data_name = 'UM'
     parser = ArgumentParser()
     parser.add_argument('-language', type=str)
@@ -174,16 +195,19 @@ if __name__ == "__main__":
     parser.add_argument('-layer', type=int)
     parser.add_argument('-ranking', type=str)
     parser.add_argument('-step', type=int, default=1)
+    parser.add_argument('--intervention', default=False, action='store_true')
     args = parser.parse_args()
     language = args.language
     attribute = args.attribute
     layer = args.layer
     ranking = args.ranking
     step = args.step
+    intervention = args.intervention
     control = False
     control_str = '_control' if control else ''
     small_dataset = False
     small_dataset_str = '_small' if small_dataset else ''
+    intervention_str = '_intervention' if intervention else ''
     data_path = datas_path[language]
     get_bert_features(data_path, data_name, language, layer)
     res_file_dir = Path('results', data_name, language, args.attribute, 'layer ' + str(layer))
@@ -210,7 +234,10 @@ if __name__ == "__main__":
     if ranking == 'bottom avg' or ranking == 'bottom cluster':
         neurons_list = list(reversed(neurons_list))
     sparsed = '' if step == 1 else 'sparsed '
-    res_file_name = sparsed + 'by ' + args.ranking + control_str
+    res_file_name = sparsed + 'by ' + args.ranking + control_str + intervention_str
+    # #TODO for debug
+    # res_file_name += '_tmp'
+    # ##############################
     ablation_res_dir = Path(res_file_dir,'ablation by attr')
     if not ablation_res_dir.exists():
         ablation_res_dir.mkdir()
@@ -224,7 +251,9 @@ if __name__ == "__main__":
         print('attribute: ', attribute)
         print('ranking: ', ranking)
         print('step: ', step)
-        ablate(data_name,language,layer,neurons_list, attribute=attribute, ranking=ranking, step=step)
+        print('intervention:', intervention)
+        ablate(data_name,language,layer,neurons_list, attribute=attribute, ranking=ranking,
+               step=step, intervention=intervention)
 
 
 

@@ -11,14 +11,18 @@ from spacy.tokens import Doc
 from transformers import BertTokenizer
 
 class morphCompare():
-    def __init__(self, language, attribute, layer, ranking):
+    def __init__(self, language, attribute, layer, ranking, intervention=False):
         self.language = language
         self.attribute = attribute
         self.layer = layer
         self.ranking = ranking
+        self.intervention_str = '_intervention' if intervention else ''
+        gpu=spacy.prefer_gpu()
+        print(f'using gpu: {gpu}')
         parsers = {'eng':'en_core_web_sm',
                    'rus':'ru_core_news_sm',
-                   'spa':'es_core_news_sm'}
+                   'spa':'es_core_news_sm',
+                   'fra':'fr_dep_news_trf'}
         self.parser = spacy.load(parsers[self.language])
         # self.parser.tokenizer = BertTokenizer(self.parser.vocab, "bert-base-multilingual-cased-vocab.txt")
         self.true_morph, self.true_words_to_tokens, self.true_tokens_to_words = self.parse_true()
@@ -69,7 +73,7 @@ class morphCompare():
         with open(true_sentences_path, 'rb') as f:
             true_sentences = pickle.load(f)
         true_sentences = list(true_sentences.items())
-        true_sentences.sort(key= lambda x: x[0])
+        true_sentences.sort(key=lambda x: x[0])
         true_sentences = [t[1] for t in true_sentences]
         # bert_tokenizer = BertTokenizer.from_pretrained("bert-base-multilingual-cased")
 
@@ -81,13 +85,11 @@ class morphCompare():
         return parsed, tokenization, rev_tokenization
 
     def parse_preds(self):
-        pred_sentences_path = Path('pickles', 'UM', self.language, self.attribute, str(self.layer), 'ablation_token_outputs_by_' + self.ranking + '.pkl')
+        pred_sentences_path = Path('pickles', 'UM', self.language, self.attribute, str(self.layer),
+                                   'ablation_token_outputs_by_' + self.ranking + self.intervention_str + '.pkl')
         with open(pred_sentences_path, 'rb') as f:
             pred_sentences = pickle.load(f)
         pred_stats, pred_tokenization, pred_rev_tokenization = {}, {}, {}
-        # #TODO remove after debug
-        # pred_sentences = pred_sentences[400]
-        # pred_sentences = {400: pred_sentences}
         for num_ablated, preds in tqdm(pred_sentences.items()):
             joined_preds = [' '.join(words) for words in preds]
             pred_stats[num_ablated] = self.parse(joined_preds)
@@ -161,20 +163,23 @@ if __name__ == '__main__':
     argparser.add_argument('-attribute', type=str)
     argparser.add_argument('-layer', type=int)
     argparser.add_argument('-ranking', type=str)
+    argparser.add_argument('--intervention', default=False, action='store_true')
     args = argparser.parse_args()
     language = args.language
     attribute = args.attribute
     layer = args.layer
     ranking = args.ranking
+    intervention = args.intervention
+    intervention_str = '_intervention' if intervention else ''
     res_dir = Path('results','UM', language, attribute, 'layer '+str(layer), 'spacy')
     if not res_dir.exists():
         res_dir.mkdir()
-    res_file_name = 'by ' + ranking
+    res_file_name = 'by ' + ranking + intervention_str
     with open(Path(res_dir, res_file_name), 'w+') as f: ###############TODO
         sys.stdout = f
         print('language: ', language)
         print('attribute: ', attribute)
         print('layer: ', layer)
         print('ranking: ', ranking)
-        mc = morphCompare(language, attribute, layer, ranking)
+        mc = morphCompare(language, attribute, layer, ranking, intervention=intervention)
         mc.comp_all()
