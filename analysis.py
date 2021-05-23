@@ -377,7 +377,7 @@ class ablation(plots):
         return ax, legend
 
 class morphologyAblation(plots):
-    def __init__(self, dir_path, names, layer, max_num=760):
+    def __init__(self, dir_path, names, layer, max_num=760, only_dump=False):
         super(morphologyAblation, self).__init__(dir_path, max_num)
         self.colors = {'by bayes mi': 'black', 'by top avg': 'red',
                        'by bottom avg': 'orange', 'by worst mi': 'purple', 'by random': 'green',
@@ -386,8 +386,9 @@ class morphologyAblation(plots):
                        'split words': 'green'}
         self.names = names
         # bayes doesn't start from 0 ablated and we need the num of errors for 0 ablated
-        assert self.names[0] == 'by bayes mi' and self.names[4] == 'by top avg'
-        self.names[0], self.names[4] = 'by top avg', 'by bayes mi'
+        if not only_dump:
+            assert self.names[0] == 'by bayes mi' and self.names[4] == 'by top avg'
+            self.names[0], self.names[4] = 'by top avg', 'by bayes mi'
         self.language = dir_path.parts[2]
         self.attribute = dir_path.parts[3]
         self.layer = layer
@@ -523,7 +524,9 @@ def run_all_probing(dir_path, plot_separate):
     max_nums = [10, 50, 150] if plot_separate else [150]
     # model_types = ['all','linear','bayes'] if plot_separate else ['all']
     model_types = ['all']
-    for metric in ['acc','nmi','selectivity','ranking avg', 'classifiers avg']:
+    # metrics = ['acc','nmi','selectivity','ranking avg', 'classifiers avg']
+    metrics = ['acc','nmi']
+    for metric in metrics:
         if not plot_separate:
             fig, axs = plt.subplots(3, figsize=[8.4, 6.8])
             fig.suptitle(' '.join(['probing',dir_path.parts[-2], dir_path.parts[-1], metric, 'per layer']))
@@ -564,6 +567,8 @@ def run_all_probing(dir_path, plot_separate):
             plt.savefig(Path(dir_path, ' '.join(['probing', metric, 'by layers'])))
 
 def run_ablation(dir_path, plot_separate):
+    if dir_path.name == 'Part of Speech':
+        return
     axs = [0]*3
     metrics = ['total accuracy', 'loss', 'ablated words accuracy', 'non-ablated words accuracy',
                'avg lemma rank', 'avg lemma log rank', 'lemmas in top 10',
@@ -598,7 +603,7 @@ def run_ablation(dir_path, plot_separate):
             fig.legend(ncol=5, loc='upper center', prop={'size':8}, bbox_to_anchor=(0.5,0.95))
             plt.savefig(Path(dir_path, ' '.join(['ablation', metric, 'by layers'])))
 
-def run_morph(dir_path, plot_separate, all_rankings):
+def run_morph(dir_path, plot_separate, all_rankings, only_dump=False):
     num_subplots = 3
     axs = [0] * num_subplots
     iter_list = ['wrong words', 'correct lemmas', 'kept attribute', 'correct values', 'split words'] if all_rankings \
@@ -617,12 +622,15 @@ def run_morph(dir_path, plot_separate, all_rankings):
                     continue
                 res_files_names = [f.parts[-1] for f in spacy_root_path.glob('*') if
                                    f.is_file()]
-                ma = morphologyAblation(dir_path=spacy_root_path, names=res_files_names, layer=layer, max_num=max_num)
+                ma = morphologyAblation(dir_path=spacy_root_path, names=res_files_names, layer=layer,
+                                        max_num=max_num, only_dump=only_dump)
+                if only_dump:
+                    continue
                 axs[i], legend = ma.plot_metric(axs[i], plot_separate, name) if all_rankings \
                     else ma.plot_ranking(axs[i], plot_separate, name)
                 if not plot_separate:
                     axs[i].text(1.01, 0.5, 'layer ' + str(layer), transform=axs[i].transAxes)
-        if not plot_separate:
+        if not plot_separate and not only_dump:
             for ax in axs:
                 ax.label_outer()
             # fig.legend(legend, ncol=5, loc='upper center', prop={'size':8}, bbox_to_anchor=(0.5,0.95))
@@ -634,12 +642,12 @@ def run_morph(dir_path, plot_separate, all_rankings):
 
 if __name__ == "__main__":
     data_name = 'UM'
-    languages = ['ara']
+    languages = ['eng']
     for lan in languages:
         print(lan)
         root_path = Path('results',data_name,lan)
         atts_path = [p for p in root_path.glob('*') if not p.is_file()]
         for att_path in atts_path:
-            run_all_probing(att_path, plot_separate=True)
+            # run_all_probing(att_path, plot_separate=True)
             # run_ablation(att_path, plot_separate=False)
-            # run_morph(att_path, plot_separate=False, all_rankings=False)
+            run_morph(att_path, plot_separate=False, all_rankings=False, only_dump=True)
