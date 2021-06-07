@@ -17,8 +17,10 @@ def plt_smt(lan, att, layer, absolute: bool):
     w_lemma_c_val_path = Path(root_path, 'w lemmas c val')
     w_lemma_w_val_path = Path(root_path, 'w lemmas w val')
     res = {}
-    for ranking in ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi', 'by random',
-                    'by top cluster', 'by bottom cluster', 'by top cluster_intervention', 'by bottom cluster_intervention']:
+    rankings = ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi',
+                    'by top cluster', 'by bottom cluster', 'by random']
+    rankings += [r+'_intervention' for r in rankings]
+    for ranking in rankings:
         colors = ["lightslategrey", "cornflowerblue", 'lightgreen', 'khaki']
         if not Path(wrong_words_path, ranking).exists():
             continue
@@ -43,9 +45,11 @@ def plt_smt(lan, att, layer, absolute: bool):
                    'wrong lemma, correct value', 'wrong lemma, wrong value']
         num_ablated = [str(r[0]) for r in wrong_words_res]
         wrong_preds = np.array([r[1] for r in wrong_words_res])
+        if max(wrong_preds) < 0.05:
+            continue
         booleans = [True if wp >= 0.05 else False for wp in wrong_preds]
         start_point = booleans.index(True)
-        if absolute:
+        if not absolute:
             wrong_preds = np.ones_like(wrong_preds)
         # data = {'ablated': num_ablated,
         #         'wrong preds': [r[1] for r in wrong_words_res],
@@ -105,8 +109,9 @@ def run_all(lan, absolute):
 def create_dataset(languages):
     attributes = ['Number', 'Tense', 'Gender and Noun Class']
     layers = [2, 7, 12]
-    rankings = ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi', 'by random',
-                'by top cluster', 'by bottom cluster', 'by top cluster_intervention', 'by bottom cluster_intervention']
+    rankings = ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi',
+                'by top cluster', 'by bottom cluster', 'by random']
+    rankings += [r + '_intervention' for r in rankings]
     ratios = ['absolute', 'normalized']
     metrics = ['max, argmax']
     cols = pd.MultiIndex.from_product([languages, attributes, layers, rankings])
@@ -137,16 +142,17 @@ def create_dataset(languages):
     #     print(relevant_data)
     #     # print('avg:')
     #     # print(round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
-    for att in attributes:
-        relevant_data = df.loc[idx['absolute', 'max, argmax'], idx[languages, [att], layers, rankings]]
-        print(f'{att}:')
-        print('absolute:')
-        print(relevant_data)
-        relevant_data = df.loc[idx['normalized', 'max, argmax'], idx[languages, [att], layers, rankings]]
-        print('normalized:')
-        print(relevant_data)
-        # print('avg:')
-        # print(round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
+    for lan in languages:
+        for att in attributes:
+            relevant_data = df.loc[idx['absolute', 'max, argmax'], idx[[lan], [att], layers, rankings]]
+            print(f'{att}:')
+            print('absolute:')
+            print(relevant_data)
+            relevant_data = df.loc[idx['normalized', 'max, argmax'], idx[[lan], [att], layers, rankings]]
+            print('normalized:')
+            print(relevant_data)
+            # print('avg:')
+            # print(round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
     print('all:')
     print(df)
 
@@ -161,7 +167,7 @@ def plot_and_dump(langs):
     return res
 
 if __name__ == "__main__":
-    languages = ['eng', 'spa']
+    languages = ['eng', 'spa', 'fra']
     plot_and_dump(languages)
     create_dataset(languages)
 
