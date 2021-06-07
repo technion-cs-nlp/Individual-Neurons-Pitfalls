@@ -4,12 +4,20 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm as progressbar
 import matplotlib.pyplot as plt
+import itertools
+from scipy.stats import wilcoxon
+import seaborn as sns
+
+order = ['bayes by bayes mi', 'linear by bayes mi', 'bayes by top avg', 'linear by top avg',
+         'bayes by top cluster', 'linear by top cluster', 'bayes by random', 'linear by random',
+         'bayes by worst mi', 'linear by worst mi', 'bayes by bottom avg', 'linear by bottom avg',
+         'bayes by bottom cluster', 'linear by bottom cluster']
 
 def load_res(lan, att, layer, ablation: bool, max_num=None):
     if ablation:
         dump_file = Path('results', 'UM', lan, att, 'layer ' + str(layer), 'ablation by attr', 'results.pkl')
     else:
-        dump_file = Path('results', 'UM', lan, att, 'layer ' + str(layer), 'figs', str(max_num), 'results.pkl')
+        dump_file = Path('results', 'UM', lan, att, 'layer ' + str(layer), 'test_acc_results.pkl')
     if not dump_file.exists():
         raise Exception(f'{lan} {att} {layer} does not exist')
     with open(dump_file, 'rb') as f:
@@ -38,18 +46,14 @@ def create_empty_df(ablation: bool):
                         for ranking in rankings:
                             all_abl.update({abl for abl, r in curr_res[metric][ranking]})
                 else:
-                    for max_num in max_nums:
-                        curr_res = load_res(lan, att, layer, ablation, max_num)
-                        metrics = curr_res.keys()
-                        all_mets.update(metrics)
-                        for metric in metrics:
-                            rankings = curr_res[metric].keys()
-                            all_rankings.update(rankings)
+                    curr_res = load_res(lan, att, layer, ablation, max_nums[0])
+                    rankings = curr_res.keys()
+                    all_rankings.update(rankings)
     col_mi = pd.MultiIndex.from_product([lans, all_atts, layers, all_rankings],
                                     names=['language', 'attribute', 'layer', 'ranking'])
-    rows = [all_mets, all_abl] if ablation else [all_mets, max_nums]
-    rows_names = ['metric', 'ablated'] if ablation else ['metric', 'max num']
-    row_mi = pd.MultiIndex.from_product(rows, names=rows_names)
+    rows = [all_mets, all_abl] if ablation else max_nums
+    rows_names = ['metric', 'ablated'] if ablation else 'max num'
+    row_mi = pd.MultiIndex.from_product(rows, names=rows_names) if ablation else max_nums
     df = pd.DataFrame(index=row_mi, columns=col_mi).sort_index().sort_index(axis=1)
     return df
 
@@ -74,11 +78,9 @@ def fill_df(df: pd.DataFrame, ablation: bool):
                 else:
                     for max_num in max_nums:
                         curr_res = load_res(lan, att, layer, ablation, max_num)
-                        metrics = curr_res.keys()
-                        for metric in metrics:
-                            rankings = curr_res[metric].keys()
-                            for ranking in rankings:
-                                df[(lan, att, layer, ranking)][(metric, max_num)] = curr_res[metric][ranking]
+                        rankings = curr_res.keys()
+                        for ranking in rankings:
+                            df[(lan, att, layer, ranking)][max_num] = curr_res[ranking][max_num - 1]
 
 def ablation_analysis(df:pd.DataFrame):
     idx = pd.IndexSlice
@@ -99,23 +101,32 @@ def get_setting_results(df: pd.DataFrame, languages, attributes, layers):
     settings = df.columns.get_level_values(3).unique()
     rankings = set([s[s.index('by'):] for s in settings])
     probes = set([s[:s.index(' by')] for s in settings])
-    metrics = df.index.get_level_values(0).unique()
+    # metrics = df.index.get_level_values(0).unique()
     max_nums = [10, 50, 150]
-    for metric in metrics:
-        results[metric] = {}
-        for max_num in max_nums:
-            results[metric][max_num] = {}
-            for setting in settings:
-                relevant_data = df.loc[idx[metric, max_num], idx[languages, attributes, layers, [setting]]]
-                results[metric][max_num][setting] = (round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
-            for ranking in rankings:
-                relevant_settings = [s for s in settings if s.endswith(ranking)]
-                relevant_data = df.loc[idx[metric, max_num], idx[languages, attributes, layers, relevant_settings]]
-                results[metric][max_num][ranking] = (round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
-            for probe in probes:
-                relevant_settings = [s for s in settings if s.startswith(probe)]
-                relevant_data = df.loc[idx[metric, max_num], idx[languages, attributes, layers, relevant_settings]]
-                results[metric][max_num][probe] = (round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
+    for max_num in max_nums:
+        results[max_num] = {}
+        for first, second in itertools.product(settings, repeat=2):
+            first_res = df.loc[idx[max_num], idx[languages, attributes, layers, first]].dropna()
+            second_res = df.loc[idx[max_num], idx[languages, attributes, layers, second]].dropna()
+            if first_res.size != second_res.size:
+                raise Exception
+            if np.count_nonzero(first_res.values - second_res.values) == 0:
+                continue
+            res = wilcoxon(first_res, second_res, alternative='less')
+            if first not in results[max_num].keys():
+                results[max_num][first] = {}
+            results[max_num][first][second] = round(res[1], 2)
+        # for setting in settings:
+        #     relevant_data = df.loc[idx[max_num], idx[languages, attributes, layers, [setting]]]
+        #     results[max_num][setting] = (round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
+        # for ranking in rankings:
+        #     relevant_settings = [s for s in settings if s.endswith(ranking)]
+        #     relevant_data = df.loc[idx[max_num], idx[languages, attributes, layers, relevant_settings]]
+        #     results[max_num][ranking] = (round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
+        # for probe in probes:
+        #     relevant_settings = [s for s in settings if s.startswith(probe)]
+        #     relevant_data = df.loc[idx[max_num], idx[languages, attributes, layers, relevant_settings]]
+        #     results[max_num][probe] = (round(relevant_data.mean(), 2), round(relevant_data.std(), 2))
     return results
 
 def probing_analysis(df: pd.DataFrame):
@@ -125,25 +136,61 @@ def probing_analysis(df: pd.DataFrame):
     lang_results = {}
     layer_results = {}
     att_results = {}
+    idx = pd.IndexSlice
     for lang in languages:
         lang_results[lang] = get_setting_results(df, [lang], attributes, layers)
         print(f'{lang}:')
-        print(pd.DataFrame.from_dict(lang_results[lang]['acc_auc']))
+        for num_neurons in [10, 50, 150]:
+            curr_res = pd.DataFrame.from_dict(lang_results[lang][num_neurons]).reindex(
+                order).reindex(columns=order)
+            # curr_res = pd.DataFrame.from_dict(lang_results[lang][num_neurons]).sort_index().sort_index(axis=1)
+            samples = df.loc[idx[num_neurons], idx[lang, attributes, layers, 'linear by top avg']].count().sum()
+            plot_heatmap(curr_res, f'{lang}_{num_neurons}_neurons', f'samples per ranking: {samples}', Path('UM', lang))
     for layer in layers:
         layer_results[layer] = get_setting_results(df, languages, attributes, [layer])
         print(f'{layer}:')
-        print(pd.DataFrame.from_dict(layer_results[layer]['acc_auc']))
+        for num_neurons in [10, 50, 150]:
+            curr_res = pd.DataFrame.from_dict(layer_results[layer][num_neurons]).reindex(
+                order).reindex(columns=order)
+            # curr_res = pd.DataFrame.from_dict(layer_results[layer][num_neurons]).sort_index().sort_index(axis=1)
+            samples = df.loc[idx[num_neurons], idx[languages, attributes, layer, 'linear by top avg']].count().sum()
+            plot_heatmap(curr_res, f'layer_{layer}_{num_neurons}_neurons', f'samples per ranking: {samples}',
+                         Path('wilcoxon', f'layer {layer}'))
     for att in attributes:
         att_results[att] = get_setting_results(df, languages, att, layers)
         print(f'{att}:')
-        print(pd.DataFrame.from_dict(att_results[att]['acc_auc']))
+        for num_neurons in [10, 50, 150]:
+            curr_res = pd.DataFrame.from_dict(att_results[att][num_neurons]).reindex(
+                order).reindex(columns=order)
+            # curr_res = pd.DataFrame.from_dict(att_results[att][num_neurons]).sort_index().sort_index(axis=1)
+            samples = df.loc[idx[num_neurons], idx[languages, att, layers, 'linear by top avg']].count().sum()
+            plot_heatmap(curr_res, f'{att}_{num_neurons}_neurons', f'samples per ranking: {samples}',
+                         Path('wilcoxon', att))
     global_results = get_setting_results(df, languages, attributes, layers)
     print('all:')
-    print('acc:')
-    print(pd.DataFrame.from_dict(global_results['acc_auc']))
-    print('sel:')
-    print(pd.DataFrame.from_dict(global_results["sel_auc"]))
+    for num_neurons in [10, 50, 150]:
+        curr_res = pd.DataFrame.from_dict(global_results[num_neurons]).reindex(order).reindex(
+            columns=order)
+        # curr_res = pd.DataFrame.from_dict(global_results[num_neurons]).sort_index().sort_index(axis=1)
+        samples = df.loc[idx[num_neurons], idx[languages, attributes, layers, 'linear by top avg']].count().sum()
+        plot_heatmap(curr_res, f'global_{num_neurons}_neurons', f'samples per ranking: {samples}',
+                     Path('wilcoxon'))
 
+
+def plot_heatmap(data: pd.DataFrame, title: str, subtitle:str, save_path: Path):
+    h = sns.heatmap(data, annot=True, xticklabels=True, yticklabels=True, cmap='Blues')
+    h.set_facecolor('grey')
+    h.set_xticklabels(h.get_xmajorticklabels(), fontsize=8)
+    h.set_yticklabels(h.get_ymajorticklabels(), fontsize=8)
+    plt.suptitle(title)
+    plt.title(subtitle)
+    h.figure.tight_layout()
+    res_root_path = Path('results')
+    if not Path(res_root_path, save_path).exists():
+        Path(res_root_path, save_path).mkdir()
+    plt.savefig(Path(res_root_path, save_path, title+'_wilcoxon_matrix.png'))
+    plt.close()
+    # plt.show()
 
 if __name__ == '__main__':
     abl = False
