@@ -154,9 +154,8 @@ class probing(plots):
         self.test_selectivities = {control_name[:-8]: [] for control_name in control_names}
 
     def dump_results(self):
-        dump_path = Path(self.dir_path, 'figs', str(self.max_num), 'results.pkl')
-        res_to_dump = {'acc_auc': self.test_acc_auc,
-                       'sel_auc': self.test_sel_auc}
+        dump_path = Path(self.dir_path, 'test_acc_results.pkl')
+        res_to_dump = self.test_acc_results
         with open(dump_path,'wb+') as f:
             pickle.dump(res_to_dump,f)
 
@@ -518,14 +517,15 @@ class morphologyAblation(plots):
         return ax, legend
 
 
-def run_all_probing(dir_path, plot_separate):
+def run_all_probing(dir_path, plot_separate, only_dump=False):
     axs = [0] * 3
     small_dataset = False
     max_nums = [10, 50, 150] if plot_separate else [150]
+    # max_nums = [150]
     # model_types = ['all','linear','bayes'] if plot_separate else ['all']
     model_types = ['all']
     # metrics = ['acc','nmi','selectivity','ranking avg', 'classifiers avg']
-    metrics = ['acc','nmi']
+    metrics = ['acc']
     for metric in metrics:
         if not plot_separate:
             fig, axs = plt.subplots(3, figsize=[8.4, 6.8])
@@ -535,9 +535,9 @@ def run_all_probing(dir_path, plot_separate):
             for max_num in max_nums:
                 for model_type in model_types:
                     layer_dir = Path(dir_path, 'layer '+str(layer))
-                    res_files_names = [f.parts[-1] for f in layer_dir.glob('*') if
-                                 f.is_file() and not f.parts[-1].startswith('whole')
-                                       and not f.parts[-1].endswith('control')]
+                    res_files_names = [f.name for f in layer_dir.glob('*') if
+                                 f.is_file() and not f.name.startswith('whole')
+                                       and not f.name.endswith('control') and not f.name.endswith('.pkl')]
                     if not res_files_names:
                         continue
                     def plot_metric(plotting: probing, metric):
@@ -552,14 +552,18 @@ def run_all_probing(dir_path, plot_separate):
                         if metric == 'classifiers avg':
                             return plotting.plot_avgs(axs[i], plot_separate, 'classifiers')
                     plotting = probing(layer_dir,res_files_names,layer,small_dataset,max_num,model_type)
+                    if metric == 'acc':
+                        plotting.dump_results()
+                    if only_dump:
+                        continue
                     res = plot_metric(plotting, metric)
                     if not plot_separate:
                         axs[i], legend = res
                         axs[i].text(1.01, 0.5, 'layer ' + str(layer), transform=axs[i].transAxes)
-                    if metric == 'selectivity':
-                        plotting.dump_results()
+                    # if metric == 'selectivity':
+                    #     plotting.dump_results()
 
-        if not plot_separate:
+        if not plot_separate and not only_dump:
             for ax in axs:
                 ax.label_outer()
             # fig.legend(legend, ncol=5, loc='upper center', prop={'size': 8}, bbox_to_anchor=(0.5, 0.95))
@@ -570,11 +574,10 @@ def run_ablation(dir_path, plot_separate):
     if dir_path.name == 'Part of Speech':
         return
     axs = [0]*3
-    metrics = ['total accuracy', 'loss', 'ablated words accuracy', 'non-ablated words accuracy',
-               'avg lemma rank', 'avg lemma log rank', 'lemmas in top 10',
-               'lemmas in top 100']
-    # for metric in ['total accuracy', 'loss', 'ablated words accuracy', 'non-ablated words accuracy',
-    #                'lemma predictions']:
+    # metrics = ['total accuracy', 'loss', 'ablated words accuracy', 'non-ablated words accuracy',
+    #            'avg lemma rank', 'avg lemma log rank', 'lemmas in top 10',
+    #            'lemmas in top 100']
+    metrics = ['total accuracy', 'loss', 'ablated words accuracy', 'non-ablated words accuracy']
     # for metric in ['avg lemma rank', 'avg lemma log rank', 'lemmas in top 10', 'lemmas in top 100']:
     for metric in metrics:
         if not plot_separate:
@@ -590,9 +593,9 @@ def run_ablation(dir_path, plot_separate):
                 # res_files_names = [f.parts[-1] for f in ablation_root_path.glob('*') if
                 #                    f.is_file()]
                 res_files_names = [f.name for f in ablation_root_path.glob('*') if
-                                   f.is_file() and f.name.startswith('sparsed')]
+                                   f.is_file() and f.name.startswith('sparsed') and 'intervention' not in f.name]
                 ab = ablation(dir_path=ablation_root_path, names=res_files_names, layer=layer, max_num=max_num)
-                ab.dump_results()
+                # ab.dump_results()
                 axs[i], legend=ab.plot_metric(axs[i], plot_separate,metric)
                 if not plot_separate:
                     axs[i].text(1.01, 0.5, 'layer ' + str(layer), transform=axs[i].transAxes)
@@ -608,8 +611,10 @@ def run_morph(dir_path, plot_separate, all_rankings, only_dump=False):
     axs = [0] * num_subplots
     iter_list = ['wrong words', 'correct lemmas', 'kept attribute', 'correct values', 'split words'] if all_rankings \
         else ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi', 'by random', 'by top cluster', 'by bottom cluster']
+    if only_dump:
+        iter_list = ['by top avg']
     for name in iter_list:
-        if not plot_separate:
+        if not plot_separate and not only_dump:
             fig, axs = plt.subplots(num_subplots, figsize=[8.4, 6.8])
             fig.suptitle(' '.join(['ablation', dir_path.parts[-2], dir_path.parts[-1], name, 'per layer']))
             legend = None
@@ -642,12 +647,12 @@ def run_morph(dir_path, plot_separate, all_rankings, only_dump=False):
 
 if __name__ == "__main__":
     data_name = 'UM'
-    languages = ['eng']
+    languages = ['eng', 'ara', 'hin', 'rus', 'fin', 'bul', 'tur', 'spa', 'fra']
     for lan in languages:
         print(lan)
         root_path = Path('results',data_name,lan)
         atts_path = [p for p in root_path.glob('*') if not p.is_file()]
         for att_path in atts_path:
-            # run_all_probing(att_path, plot_separate=True)
-            # run_ablation(att_path, plot_separate=False)
-            run_morph(att_path, plot_separate=False, all_rankings=False, only_dump=True)
+            # run_all_probing(att_path, plot_separate=True, only_dump=True)
+            run_ablation(att_path, plot_separate=False)
+            # run_morph(att_path, plot_separate=False, all_rankings=False, only_dump=True)
