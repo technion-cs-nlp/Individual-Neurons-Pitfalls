@@ -78,10 +78,12 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
     accs, losses = [], []
     missing_neurons = set(range(consts.BERT_OUTPUT_DIM)) - set(neurons_list)
     missing_num = len(missing_neurons)
+    max_ablated = consts.BERT_OUTPUT_DIM
     if missing_num > 0:
-        neurons_list = list(missing_neurons)+neurons_list
+        neurons_list = neurons_list + list(missing_neurons)
+        max_ablated = consts.BERT_OUTPUT_DIM - missing_num
     decoded_outputs, decoded_tokens, lemmas_ranks = {}, {}, {}
-    for num_ablated in progressbar(range(missing_num, consts.BERT_OUTPUT_DIM, step)):
+    for num_ablated in progressbar(range(0, max_ablated, step)):
         print('neuron {}'.format(neurons_list[num_ablated]))
         counters = dict.fromkeys(['total_loss', 'total_correct', 'total_tokens', 'relevant_correct',
                                   'total_relevant', 'total_correct_relevant',
