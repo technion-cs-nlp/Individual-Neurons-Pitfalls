@@ -327,6 +327,7 @@ if __name__ == "__main__":
         res_suffix = ranking
     from_log_str = 'from_log' if from_log else ''
     res_file_name = 'bayes by ' + res_suffix + control_str + from_log_str
+    # res_file_name += '_tmp' #TODO
     with open(Path(res_file_dir, res_file_name), 'w+') as f:
         sys.stdout = f
         print('layer: ', layer)

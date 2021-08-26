@@ -1,3 +1,5 @@
+import numpy as np
+
 import consts
 import utils
 from model import MLM, BertFromMiddle
@@ -11,6 +13,7 @@ import time
 from argparse import ArgumentParser
 import sys
 import pickle
+import copy
 
 
 def get_bert_features(data_path, data_name, language, layer):
@@ -33,7 +36,8 @@ def collate_fn(batch):
     return [sentences, features]
 
 def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=False, ranking='', step=0,
-           intervention=False):
+           alpha=1, intervention=False, scaling=''):
+    alpha_str = str(np.ceil(alpha.max())) if scaling else alpha
     set_name = 'test_'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = BertFromMiddle(layer)
@@ -83,7 +87,8 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
         neurons_list = neurons_list + list(missing_neurons)
         max_ablated = consts.BERT_OUTPUT_DIM - missing_num
     decoded_outputs, decoded_tokens, lemmas_ranks = {}, {}, {}
-    for num_ablated in progressbar(range(0, max_ablated, step)):
+    for num_ablated in progressbar(range(0, max_ablated, step)): #TODO
+    # for num_ablated in progressbar(range(50, max_ablated, step)):
         print('neuron {}'.format(neurons_list[num_ablated]))
         counters = dict.fromkeys(['total_loss', 'total_correct', 'total_tokens', 'relevant_correct',
                                   'total_relevant', 'total_correct_relevant',
@@ -106,36 +111,34 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
             # features = torch.cat(sentences_and_features[1])
             relevant_indices = []
             features = sentences_and_features[1]
-            if attribute == '':
-                for f in features:
-                    f[1:-1, neurons_to_ablate] = 0.
-            else:
-                for f in features:
-                    # place an empty set in case no words have the attribute
-                    relevant_indices.append(set())
-                    if words_per_att[sentence_idx].get(attribute):
-                        if intervention:
-                            indices_per_label = words_per_att[sentence_idx][attribute]
-                            possible_labels = list(values_avg.keys())
-                            for label, indices in indices_per_label.items():
-                                # ignore labels that have been filtered in parsing (less than 100 examples in some set)
-                                if label not in values_avg.keys():
-                                    continue
-                                relevant_indices[-1].update(indices)
-                                relevant_words_features = f[indices]
-                                relevant_words_features[:, neurons_to_ablate] -= values_avg[label][tuple(neurons_to_ablate)]
-                                next_label = possible_labels[(possible_labels.index(label) + 1) % len(possible_labels)]
-                                relevant_words_features[:, neurons_to_ablate] += values_avg[next_label][tuple(neurons_to_ablate)]
-                                f[indices] = relevant_words_features
-                        else:
-                            rel_ind = [idx for idxs in words_per_att[sentence_idx][attribute].values() for idx in idxs]
-                            relevant_indices[-1]= set(rel_ind)
-                            relevant_words_features = f[rel_ind]
-                            relevant_words_features[:, neurons_to_ablate] = 0.
-                            f[rel_ind] = relevant_words_features
-                    sentence_idx+=1
+            mod_features = copy.deepcopy(features)
+            for f in mod_features:
+                # place an empty set in case no words have the attribute
+                relevant_indices.append(set())
+                if words_per_att[sentence_idx].get(attribute):
+                    if intervention:
+                        indices_per_label = words_per_att[sentence_idx][attribute]
+                        possible_labels = list(values_avg.keys())
+                        for label, indices in indices_per_label.items():
+                            # ignore labels that have been filtered in parsing (less than 100 examples in some set)
+                            if label not in values_avg.keys():
+                                continue
+                            relevant_indices[-1].update(indices)
+                            relevant_words_features = f[indices]
+                            coef = alpha[tuple(neurons_to_ablate)] if scaling else alpha
+                            relevant_words_features[:, neurons_to_ablate] -= coef * values_avg[label][tuple(neurons_to_ablate)]
+                            next_label = possible_labels[(possible_labels.index(label) + 1) % len(possible_labels)]
+                            relevant_words_features[:, neurons_to_ablate] += coef * values_avg[next_label][tuple(neurons_to_ablate)]
+                            f[indices] = relevant_words_features
+                    else:
+                        rel_ind = [idx for idxs in words_per_att[sentence_idx][attribute].values() for idx in idxs]
+                        relevant_indices[-1]= set(rel_ind)
+                        relevant_words_features = f[rel_ind]
+                        relevant_words_features[:, neurons_to_ablate] = 0.
+                        f[rel_ind] = relevant_words_features
+                sentence_idx+=1
             batch_lemmas = lemmas[sentence_idx - len(sentences):sentence_idx]
-            res = model(sentences, features, relevant_indices, batch_lemmas)
+            res = model(sentences, mod_features, relevant_indices, batch_lemmas)
             # loss, correct_preds, num_tokens, correct_relevant, num_relevant = res
             counters['total_loss'] += res['loss']
             counters['total_correct'] += res['correct_all']
@@ -174,9 +177,10 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
     if not outputs_dir.exists():
         outputs_dir.mkdir(parents=True, exist_ok=True)
     intervention_str = '_intervention' if intervention else ''
-    with open(Path(outputs_dir,'ablation_token_outputs_by_'+ranking+intervention_str+'.pkl'),'wb+') as f:
+    scaling_str = scaling
+    with open(Path(outputs_dir,f'ablation_token_outputs_by_{ranking}{intervention_str}_{step}_{alpha_str}_{scaling_str}.pkl'),'wb+') as f:
         pickle.dump(decoded_tokens, f)
-    with open(Path(outputs_dir, 'ablation_lemmas_ranks_by_'+ranking+intervention_str+'.pkl'),'wb+') as f:
+    with open(Path(outputs_dir,f'ablation_lemmas_ranks_by_{ranking}{intervention_str}_{step}_{alpha_str}_{scaling_str}.pkl'),'wb+') as f:
         pickle.dump(lemmas_ranks,f)
 
 if __name__ == "__main__":
@@ -197,19 +201,25 @@ if __name__ == "__main__":
     parser.add_argument('-layer', type=int)
     parser.add_argument('-ranking', type=str)
     parser.add_argument('-step', type=int, default=1)
+    parser.add_argument('-alpha', type=int, default=1)
     parser.add_argument('--intervention', default=False, action='store_true')
+    parser.add_argument('-scaling', type=str)
     args = parser.parse_args()
     language = args.language
     attribute = args.attribute
     layer = args.layer
     ranking = args.ranking
     step = args.step
+    alpha = args.alpha
     intervention = args.intervention
+    scaling = args.scaling
     control = False
     control_str = '_control' if control else ''
     small_dataset = False
     small_dataset_str = '_small' if small_dataset else ''
     intervention_str = '_intervention' if intervention else ''
+    alpha_str = str(alpha)
+    scaling_str = scaling
     data_path = datas_path[language]
     get_bert_features(data_path, data_name, language, layer)
     res_file_dir = Path('results', data_name, language, args.attribute, 'layer ' + str(layer))
@@ -235,15 +245,24 @@ if __name__ == "__main__":
         sys.exit('WRONG SETTING')
     if ranking == 'bottom avg' or ranking == 'bottom cluster':
         neurons_list = list(reversed(neurons_list))
+    means_path = Path('pickles', 'UM', language, attribute, str(layer), 'avg_embeddings_by_label.pkl')
+    scaling_params = {'top avg': (utils.linear_score, linear_model_path),
+                      'bayes mi': (utils.bayes_score, bayes_res_path),
+                      'top cluster': (utils.cluster_score, means_path)}
+    if scaling:
+        if scaling == 'ranking':
+            scores = get_ranking(scaling_params[ranking])
+            alpha = utils.scaling(scores, alpha)
+        elif scaling == 'lnspace':
+            alpha = utils.lnscale(neurons_list, alpha)
     sparsed = '' if step == 1 else 'sparsed '
-    res_file_name = sparsed + 'by ' + args.ranking + control_str + intervention_str
+    res_file_name = f'by {ranking}{intervention_str}_{step}_{alpha_str}_{scaling_str}'
     # #TODO for debug
     # res_file_name += '_tmp'
     # ##############################
     ablation_res_dir = Path(res_file_dir,'ablation by attr')
     if not ablation_res_dir.exists():
         ablation_res_dir.mkdir()
-
     with open(Path(ablation_res_dir, res_file_name), 'w+') as f: ###############TODO
         sys.stdout = f
         print('layer: ', layer)
@@ -253,9 +272,10 @@ if __name__ == "__main__":
         print('attribute: ', attribute)
         print('ranking: ', ranking)
         print('step: ', step)
+        print('alpha: ', alpha)
         print('intervention:', intervention)
         ablate(data_name,language,layer,neurons_list, attribute=attribute, ranking=ranking,
-               step=step, intervention=intervention)
+               step=step, alpha=alpha, intervention=intervention, scaling=scaling)
 
 
 

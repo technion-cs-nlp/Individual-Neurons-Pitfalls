@@ -29,7 +29,7 @@ def train(dataloader, model_name: str, lambda1=0.001, lambda2=0.01,
     acc_on_best_loss, mi_on_best_loss = 0.0, 0.0
     best_model=None
     label_ratios = (torch.histc(torch.tensor([sample[1] for sample in dataloader.dataset]).float(),
-                                bins = consts.LABEL_DIM)) / len(dataloader.dataset)
+                                bins=consts.LABEL_DIM)) / len(dataloader.dataset)
     entropy = torch.distributions.Categorical(label_ratios).entropy()
     for epoch in range(consts.EPOCHS):
         if verbose:

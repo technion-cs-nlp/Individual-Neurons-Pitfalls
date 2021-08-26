@@ -1,11 +1,10 @@
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from datetime import timedelta
 from pathlib import Path
-import numpy as np
-from scipy.interpolate import interpolate
 import torch
 import consts
-import utils
+from utils import divide_zero
 import copy
 from argparse import ArgumentParser
 import ast
@@ -26,20 +25,23 @@ class plots():
     def draw_plot(self, ax, sorted_results, auc=False):
         raise NotImplementedError
 
-    def prep_plot(self, title, results, save_file_name, xlabel, ax, to_save=False):
+    def prep_plot(self, title, results, save_file_name, xlabel, ylabel, ax, to_save=False):
         results = {name:res for name,res in results.items() if res}
         if not results:
             return None, None
         # fig = plt.figure(figsize=[7.2, 4.8])
-        auc = True if save_file_name == 'test accuracy' else False
+        # auc = True if save_file_name == 'test accuracy' else False
+        auc = False
         if to_save:
             if auc:
                 fig = plt.figure(figsize=[9.8,5.8])
                 ax = plt.subplot(111)
                 fig.suptitle(title)
             else:
-                plt.figure(figsize=[7.2, 4.8])
-                ax = plt.subplot(111, title=title)
+                plt.figure(figsize=[6.4, 4.8])
+                # plt.figure()
+                # ax = plt.subplot(111, title=title)
+                ax = plt.subplot(111)
         sorted_results = list(results.items())
         curr_max = min(self.max_num, len(sorted_results[0][1]))
         def sort_plots_by_last_val(l):
@@ -58,40 +60,69 @@ class plots():
             sorted_results.sort(key=sort_plots_by_last_val,reverse=True)
         # find a better way for auc condition
 
-        ax, legend = self.draw_plot(ax, sorted_results, auc=auc)
+        ax, legend_labels, legend_lines = self.draw_plot(ax, sorted_results, auc=auc)
         # box = ax.get_position()
         # ax.set_position([box.x0, box.y0, box.width * 0.75, box.height])
         # ax.legend(legend, loc='center left', bbox_to_anchor=(1, 0.5))
-        ax.set_xlabel(xlabel)
+        ax.set_xlabel(xlabel, fontsize=16)
+        ax.set_ylabel(ylabel, fontsize=16)
+        ax.tick_params(axis='both', which='major', labelsize=16)
+        # ax.yticks(fontsize=10)
         if to_save:
             box = ax.get_position()
             if auc:
                 ax.set_position([box.x0, box.y0, box.width, box.height * 0.85])
-                ax.legend(legend, ncol=3, loc='upper center', prop={'size': 9}, bbox_to_anchor=(0.5,1.29))
+                ax.legend(legend_labels, ncol=3, loc='upper center', prop={'size': 9}, bbox_to_anchor=(0.5,1.29))
             else:
-                ax.set_position([box.x0, box.y0, box.width * 0.75, box.height])
-                ax.legend(legend, loc='center left', bbox_to_anchor=(1, 0.5))
-                ax.set_title(title)
+                ax.set_position([box.x0, box.y0, box.width, box.height])
+                # ax.legend(legend_lines, legend_labels, loc='center left', bbox_to_anchor=(1, 0.5), fontsize=12)
+                # figlegend = plt.figure(figsize=[12., 4.8])
+                # figlegend.legend(legend_lines, legend_labels, ncol=4, loc='center', fontsize=12)
+                # plt.tight_layout()
+                # figlegend.show()
+                # plt.savefig(Path(self.save_path, 'only_legend.png', bbox_inches='tight'))
+                # ax.set_title(title)
             # fig.legend(ncol=5, loc='upper center', prop={'size': 8}, bbox_to_anchor=(0.5, 0.95))
+            plt.tight_layout()
             plt.savefig(Path(self.save_path, save_file_name))
+            # plt.show()
             plt.close()
-        return ax, legend
+        return ax, legend_labels
 
 class probing(plots):
     def __init__(self, dir_path:Path, names, layer:int, small:bool, max_num:int, model_type:str='all'):
         super(probing, self).__init__(dir_path=dir_path, max_num=max_num)
         if model_type != 'all':
             names = [name for name in names if name.startswith(model_type)]
+        # self.colors = {'bayes by bayes mi': 'black', 'linear by bayes mi': 'gray',
+        #                'bayes by worst mi': 'brown', 'linear by top avg': 'red',
+        #                'bayes by bottom avg': 'orange', 'linear by worst mi': 'purple',
+        #                 'bayes by top avg': 'blue', 'linear by random': 'olive',
+        #                'linear by bottom avg': 'palegreen', 'bayes by random': 'green',
+        #                'linear by top cluster': 'aquamarine', 'linear by bottom cluster': 'skyblue',
+        #                'bayes by top cluster': 'khaki', 'bayes by bottom cluster': 'thistle',
+        #                'bayes': 'black', 'linear': 'red', 'by bayes mi': 'black', 'by top avg': 'red',
+        #                'by bottom avg': 'orange', 'by worst mi': 'purple', 'by random': 'green',
+        #                'by top cluster': 'aquamarine', 'by bottom cluster': 'lightslategray'}
         self.colors = {'bayes by bayes mi': 'black', 'linear by bayes mi': 'gray',
-                       'bayes by worst mi': 'brown', 'linear by top avg': 'red',
-                       'bayes by bottom avg': 'orange', 'linear by worst mi': 'purple',
-                        'bayes by top avg': 'blue', 'linear by random': 'olive',
-                       'linear by bottom avg': 'palegreen', 'bayes by random': 'green',
-                       'linear by top cluster': 'aquamarine', 'linear by bottom cluster': 'skyblue',
-                       'bayes by top cluster': 'khaki', 'bayes by bottom cluster': 'thistle',
+                       'bayes by worst mi': 'black', 'linear by top avg': 'red',
+                       'bayes by bottom avg': 'blue', 'linear by worst mi': 'gray',
+                       'bayes by top avg': 'blue', 'linear by random': 'olive',
+                       'linear by bottom avg': 'red', 'bayes by random': 'green',
+                       'linear by top cluster': 'aquamarine', 'linear by bottom cluster': 'aquamarine',
+                       'bayes by top cluster': 'khaki', 'bayes by bottom cluster': 'khaki',
                        'bayes': 'black', 'linear': 'red', 'by bayes mi': 'black', 'by top avg': 'red',
                        'by bottom avg': 'orange', 'by worst mi': 'purple', 'by random': 'green',
                        'by top cluster': 'aquamarine', 'by bottom cluster': 'lightslategray'}
+        colors_cmap = plt.get_cmap('Paired').colors
+        colors_cmap = colors_cmap[1::2] + ('black', 'gray')
+        settings = ['bayes by bayes mi', 'linear by bayes mi', 'bayes by top avg', 'linear by top avg',
+                    'bayes by top cluster', 'linear by top cluster', 'bayes by random', 'linear by random',
+                    'bayes by worst mi', 'linear by worst mi', 'bayes by bottom avg', 'linear by bottom avg',
+                    'bayes by bottom cluster', 'linear by bottom cluster']
+        self.colors = {k: v for k, v in zip(settings, colors_cmap+colors_cmap)}
+        self.linestyles = {k: 'dotted' if 'bottom' in k or 'worst' in k else 'dashed' if 'random' in k else 'solid'
+                           for k in self.colors.keys()}
         self.names = names
         # self.lca = 'with lca' if 'lca' in ''.join(names) else 'no lca'
         self.layer = layer
@@ -160,17 +191,22 @@ class probing(plots):
             pickle.dump(res_to_dump,f)
 
     def draw_plot(self, ax, sorted_results, auc=False):
-        legend = []
+        legend_labels, legend_lines = [], []
         for name, res in sorted_results:
             # TODO change 'layer==2' condition to something that makes sense
             # it's there in order to place labels only once
             if self.layer == 2:
-                ax.plot(res[:self.max_num], color=self.colors[name], label=name)
+                # line = Line2D(list(range(self.max_num)), res[:self.max_num], color=self.colors[name], label=name, linestyle=self.linestyles[name])
+                line, = ax.plot(res[:self.max_num], color=self.colors[name], label=name, linestyle=self.linestyles[name])
             else:
-                ax.plot(res[:self.max_num], color=self.colors[name])
-            name_for_legend = ' '.join([name, '(AUC:{:.2f})'.format(self.test_acc_auc[name])]) if auc else name
-            legend.append(name_for_legend)
-        return ax, legend
+                # line = Line2D(list(range(self.max_num)), res[:self.max_num], color=self.colors[name], linestyle=self.linestyles[name])
+                line, = ax.plot(res[:self.max_num], color=self.colors[name], linestyle=self.linestyles[name])
+            # name_for_legend = ' '.join([name, '(AUC:{:.2f})'.format(self.test_acc_auc[name])]) if auc else name
+            name_for_legend = ' '.join(name.split()[:2]+name.split()[-1:])
+            if not ('bottom' in name or 'worst' in name):
+                legend_labels.append(name_for_legend)
+                legend_lines.append(line)
+        return ax, legend_labels, legend_lines
 
     def plot_acc_and_nmi(self, ax, to_save, metric):
         if not self.train_acc_results:
@@ -183,9 +219,10 @@ class probing(plots):
         #             ' - train ' + metric + (' (small dataset)' if self.small else '')
         #     self.prep_plot(title, train_results, 'train ' + metric, 'neurons', ax, to_save)
         # for test_results, metric in zip([self.test_acc_results, self.test_nmi_results], ['accuracy', 'nmi']):
+        paper_str = '_paper'
         title = ' '.join([self.language, self.attribute, self.layer_str]) +\
-                ' - test ' + metric + (' (small dataset)' if self.small else '')
-        ax, legend = self.prep_plot(title, results, 'test ' + metric, 'neurons', ax, to_save)
+                ' - test ' + metric + paper_str
+        ax, legend = self.prep_plot(title, results, 'test ' + metric + paper_str, 'neurons', metric, ax, to_save)
         return ax,legend
 
     def plot_selectivity(self, ax, to_save):
@@ -204,7 +241,8 @@ class probing(plots):
             for acc, cont in zip(self.test_acc_for_control[name], self.test_controls[name + '_control']):
                 res.append(acc - cont)
             self.test_sel_auc[name] = np.trapz(self.test_selectivities[name][:self.max_num], dx=1)
-        ax, legend = self.prep_plot(title, self.test_selectivities, 'test selectivity', 'neurons', ax, to_save)
+        paper_str = '_paper'
+        ax, legend = self.prep_plot(title, self.test_selectivities, 'test selectivity'+paper_str, 'neurons', 'selectivity', ax, to_save)
         return ax,legend
 
     def plot_avgs(self, ax, to_save, avg_type):
@@ -269,7 +307,7 @@ class probing(plots):
             title = ' '.join(
                 [self.language, self.attribute, self.layer_str, 'test', avg_type, metric, 'avgs', small_str])
             file_name = ' '.join(['test', avg_type, metric, 'avgs'])
-            ax, legend = self.prep_plot(title, test_res, file_name, 'neurons', ax, to_save)
+            ax, legend = self.prep_plot(title, test_res, file_name, 'neurons', metric, ax, to_save)
             return ax, legend
 
 class ablation(plots):
@@ -372,7 +410,7 @@ class ablation(plots):
                        'lemmas in top 10': self.lemma_top_10, 'lemmas in top 100': self.lemma_top_100}
         results = graph_types[metric]
         title = ' '.join([self.language, self.attribute, self.layer_str,'ablation ']) + metric
-        ax, legend = self.prep_plot(title, results, metric, xlabel='ablated neurons', ax=ax, to_save=to_save)
+        ax, legend = self.prep_plot(title, results, metric, xlabel='ablated neurons', ylabel=metric, ax=ax, to_save=to_save)
         return ax, legend
 
 class morphologyAblation(plots):
@@ -421,32 +459,31 @@ class morphologyAblation(plots):
                             self.initial_correct_lemma = curr_stats['correct lemma']
                             # self.initial_wrong_lemma = curr_stats['wrong lemma']
                             self.initial_no_attribute = curr_stats['no attribute']
+                        # self.wrong_word[name].append((num_ablated, curr_stats['wrong word'] /
+                        #                               (curr_stats['relevant'] - curr_stats['pred split'])))
                         self.wrong_word[name].append((num_ablated, curr_stats['wrong word'] /
-                                                      (curr_stats['relevant'] - curr_stats['pred split'])))
+                                                      curr_stats['relevant']))
                         # new_errors = curr_stats['wrong word'] - self.initial_errors
                         # new_correct_lemma = curr_stats['correct lemma'] - self.initial_correct_lemma
                         # new_wrong_lemma = curr_stats['wrong lemma'] - self.initial_wrong_lemma
                         # new_no_attribute = curr_stats['no attribute'] - self.initial_no_attribute
-                        # if new_errors < 0 or new_no_attribute < 0 or new_correct_lemma < 0:
-                        #     print('here')
                         self.correct_lemma[name].append((num_ablated,
-                                                         utils.divide_zero(curr_stats['correct lemma'],
+                                                         divide_zero(curr_stats['correct lemma'],
                                                                            curr_stats['wrong word'])))
-                        # if utils.divide_zero(new_correct_lemma, new_errors) > 1:
-                        #     print('here')
                         self.kept_attribute[name].append((num_ablated,
-                                                        utils.divide_zero(curr_stats['kept attribute'],
+                                                        divide_zero(curr_stats['kept attribute'],
                                                                           curr_stats['wrong word'])))
                         # self.no_attribute[name].append((num_ablated,
-                        #                                 utils.divide_zero(curr_stats['no attribute'],
+                        #                                 divide_zero(curr_stats['no attribute'],
                         #                                                   curr_stats['wrong word'])))
                         if curr_stats['kept attribute'] != 0:
                             self.correct_val[name].append((num_ablated, curr_stats['correct val'] /
                                                            curr_stats['kept attribute']))
                         self.split_words[name].append((num_ablated, curr_stats['pred split'] /
                                                        curr_stats['relevant']))
-                        self.correct_lemma_correct_val[name].append((num_ablated, curr_stats['correct lemma, correct value'] /
-                                                                     curr_stats['wrong word']))
+                        self.correct_lemma_correct_val[name].append(
+                            (num_ablated, curr_stats['correct lemma, correct value'] /
+                             curr_stats['wrong word']))
                         self.correct_lemma_wrong_val[name].append(
                             (num_ablated, curr_stats['correct lemma, wrong value'] /
                              curr_stats['wrong word']))
@@ -487,7 +524,7 @@ class morphologyAblation(plots):
                        'split words': self.split_words}
         results = graph_types[metric]
         title = ' '.join([self.language, self.attribute, self.layer_str, 'ablation ']) + metric
-        ax, legend = self.prep_plot(title, results, metric, xlabel='ablated neurons', ax=ax, to_save=to_save)
+        ax, legend = self.prep_plot(title, results, metric, xlabel='ablated neurons', ylabel=metric, ax=ax, to_save=to_save)
         return ax, legend
 
     def plot_ranking(self, ax, to_save, ranking):
@@ -496,7 +533,7 @@ class morphologyAblation(plots):
                        'split words': self.split_words}
         results = {metric: r[ranking] for metric, r in all_results.items()}
         title = ' '.join([self.language, self.attribute, self.layer_str, 'ablation ']) + ranking
-        ax, legend = self.prep_plot(title, results, ranking, xlabel='ablated neurons', ax=ax, to_save=to_save)
+        ax, legend = self.prep_plot(title, results, ranking, xlabel='ablated neurons', ylabel='', ax=ax, to_save=to_save)
         return ax, legend
 
     def draw_plot(self, ax, sorted_results, **kwargs):
@@ -521,7 +558,7 @@ def run_all_probing(dir_path, plot_separate, only_dump=False):
     axs = [0] * 3
     small_dataset = False
     max_nums = [10, 50, 150] if plot_separate else [150]
-    # max_nums = [150]
+    max_nums = [150]
     # model_types = ['all','linear','bayes'] if plot_separate else ['all']
     model_types = ['all']
     # metrics = ['acc','nmi','selectivity','ranking avg', 'classifiers avg']
@@ -531,7 +568,8 @@ def run_all_probing(dir_path, plot_separate, only_dump=False):
             fig, axs = plt.subplots(3, figsize=[8.4, 6.8])
             fig.suptitle(' '.join(['probing',dir_path.parts[-2], dir_path.parts[-1], metric, 'per layer']))
             legend=None
-        for i, layer in enumerate([2, 7, 12]):
+        # for i, layer in enumerate([2, 7, 12]):
+        for i, layer in enumerate([7]):
             for max_num in max_nums:
                 for model_type in model_types:
                     layer_dir = Path(dir_path, 'layer '+str(layer))
@@ -540,6 +578,8 @@ def run_all_probing(dir_path, plot_separate, only_dump=False):
                                        and not f.name.endswith('control') and not f.name.endswith('.pkl')]
                     if not res_files_names:
                         continue
+                    res_files_names = ['bayes by bayes mi', 'bayes by worst mi', 'linear by bayes mi',
+                                       'linear by top avg', 'bayes by random', 'linear by bottom avg']
                     def plot_metric(plotting: probing, metric):
                         if metric == 'acc':
                             return plotting.plot_acc_and_nmi(axs[i], plot_separate, 'accuracy')
@@ -552,8 +592,8 @@ def run_all_probing(dir_path, plot_separate, only_dump=False):
                         if metric == 'classifiers avg':
                             return plotting.plot_avgs(axs[i], plot_separate, 'classifiers')
                     plotting = probing(layer_dir,res_files_names,layer,small_dataset,max_num,model_type)
-                    if metric == 'acc':
-                        plotting.dump_results()
+                    # if metric == 'acc':
+                    #     plotting.dump_results()
                     if only_dump:
                         continue
                     res = plot_metric(plotting, metric)
@@ -625,8 +665,8 @@ def run_morph(dir_path, plot_separate, all_rankings, only_dump=False):
                 spacy_root_path = Path(dir_path, 'layer ' + str(layer), 'spacy')
                 if not spacy_root_path.exists():
                     continue
-                res_files_names = [f.parts[-1] for f in spacy_root_path.glob('*') if
-                                   f.is_file()]
+                res_files_names = [f.name for f in spacy_root_path.glob('*') if
+                                   f.is_file() and f.name.endswith('lnspace')]
                 ma = morphologyAblation(dir_path=spacy_root_path, names=res_files_names, layer=layer,
                                         max_num=max_num, only_dump=only_dump)
                 if only_dump:
@@ -647,12 +687,15 @@ def run_morph(dir_path, plot_separate, all_rankings, only_dump=False):
 
 if __name__ == "__main__":
     data_name = 'UM'
-    languages = ['eng', 'ara', 'hin', 'rus', 'fin', 'bul', 'tur', 'spa', 'fra']
+    # languages = ['eng', 'ara', 'hin', 'rus', 'fin', 'bul', 'tur', 'spa', 'fra']
+    languages = ['bul']
     for lan in languages:
         print(lan)
         root_path = Path('results',data_name,lan)
         atts_path = [p for p in root_path.glob('*') if not p.is_file()]
         for att_path in atts_path:
-            # run_all_probing(att_path, plot_separate=True, only_dump=True)
-            run_ablation(att_path, plot_separate=False)
+            if 'Definiteness' != att_path.name:
+                continue
+            run_all_probing(att_path, plot_separate=True, only_dump=False)
+            # run_ablation(att_path, plot_separate=False)
             # run_morph(att_path, plot_separate=False, all_rankings=False, only_dump=True)

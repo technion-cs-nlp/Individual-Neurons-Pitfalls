@@ -8,7 +8,7 @@ from model import BertWordEmbeds, BertLM
 import consts
 # from constants import BERT_OUTPUT_DIM
 from tqdm import tqdm as progressbar
-from conllu import TokenList
+# from conllu import TokenList
 from pathlib import Path
 
 class DataHandler():

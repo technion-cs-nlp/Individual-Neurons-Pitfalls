@@ -6,17 +6,22 @@ from argparse import ArgumentParser
 import spacy
 from pathlib import Path
 from tqdm import tqdm
-from tokenizers import BertWordPieceTokenizer
-from spacy.tokens import Doc
-from transformers import BertTokenizer
+# from tokenizers import BertWordPieceTokenizer
+# from spacy.tokens import Doc
+# from transformers import BertTokenizer
 
 class morphCompare():
-    def __init__(self, language, attribute, layer, ranking, intervention=False):
+    def __init__(self, language, attribute, layer, ranking, intervention=False, step=-1, alpha=1, scaling=False):
         self.language = language
         self.attribute = attribute
         self.layer = layer
         self.ranking = ranking
         self.intervention_str = '_intervention' if intervention else ''
+        self.step = step
+        self.alpha = alpha
+        alpha_str = str(float(alpha)) if scaling else str(alpha)
+        self.params_str = f'_{step}_{alpha_str}' if step != -1 else ''
+        self.scaling_str = '_' + scaling if scaling else ''
         gpu=spacy.prefer_gpu()
         print(f'using gpu: {gpu}')
         parsers = {'eng':'en_core_web_sm',
@@ -86,7 +91,8 @@ class morphCompare():
 
     def parse_preds(self):
         pred_sentences_path = Path('pickles', 'UM', self.language, self.attribute, str(self.layer),
-                                   'ablation_token_outputs_by_' + self.ranking + self.intervention_str + '.pkl')
+                                   'ablation_token_outputs_by_' + self.ranking + self.intervention_str +
+                                   self.params_str + self.scaling_str + '.pkl')
         with open(pred_sentences_path, 'rb') as f:
             pred_sentences = pickle.load(f)
         pred_stats, pred_tokenization, pred_rev_tokenization = {}, {}, {}
@@ -118,8 +124,8 @@ class morphCompare():
                     if prev_word_idx != word_idx:
                         true_words = [curr_stats['ids'][tok] for tok in true_word_tokens]
                         pred_words = [pred_morph[sent_idx]['ids'][tok] for tok in pred_token_idx]
-                        print(f"true words: {' '.join(true_words)}")
-                        print(f"pred words: {' '.join(pred_words)}")
+                        # print(f"true words: {' '.join(true_words)}")
+                        # print(f"pred words: {' '.join(pred_words)}")
                         prev_word_idx = word_idx
                     continue
                 pred_token_idx = pred_token_idx[true_word_tokens.index(token_idx)]
@@ -163,23 +169,39 @@ if __name__ == '__main__':
     argparser.add_argument('-attribute', type=str)
     argparser.add_argument('-layer', type=int)
     argparser.add_argument('-ranking', type=str)
+    argparser.add_argument('-step', type=int, default=-1)
+    argparser.add_argument('-alpha', type=int, default=1)
     argparser.add_argument('--intervention', default=False, action='store_true')
+    argparser.add_argument('-scaling', type=str)
     args = argparser.parse_args()
     language = args.language
     attribute = args.attribute
     layer = args.layer
     ranking = args.ranking
+    step = args.step
+    alpha = args.alpha
     intervention = args.intervention
+    scaling = args.scaling
     intervention_str = '_intervention' if intervention else ''
+    scaling_str = '_' + scaling if scaling else ''
+    alpha_str = str(float(alpha)) if scaling else str(alpha)
+    params_str = f'_{step}_{alpha_str}' if step != -1 else ''
+    dump_path = Path('pickles', 'UM', language, attribute, str(layer), 'ablation_token_outputs_by_'
+                     + ranking + intervention_str + params_str + scaling_str + '.pkl')
+    if not dump_path.exists():
+        sys.exit('WRONG SETTING')
     res_dir = Path('results','UM', language, attribute, 'layer '+str(layer), 'spacy')
     if not res_dir.exists():
         res_dir.mkdir()
-    res_file_name = 'by ' + ranking + intervention_str
+    res_file_name = 'by ' + ranking + intervention_str + params_str + scaling_str
     with open(Path(res_dir, res_file_name), 'w+') as f: ###############TODO
         sys.stdout = f
         print('language: ', language)
         print('attribute: ', attribute)
         print('layer: ', layer)
         print('ranking: ', ranking)
-        mc = morphCompare(language, attribute, layer, ranking, intervention=intervention)
+        print('step: ', step)
+        print('alpha: ', alpha)
+        mc = morphCompare(language, attribute, layer, ranking, intervention=intervention, step=step,
+                          alpha=alpha, scaling=scaling)
         mc.comp_all()

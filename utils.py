@@ -1,10 +1,13 @@
 import os
 import pickle
+
+import numpy as np
 import torch
 import consts
 from model import PosTaggerWholeVector
 from transformers import BertConfig
 from transformers.models.bert.modeling_bert import BertOnlyMLMHead
+from valueAvg import get_diff_sum
 
 def save_obj(obj, file_name, device, name, data_name, ablation=False):
     path = os.path.join('pickles', 'ablation' if ablation else '',
@@ -109,3 +112,41 @@ def sort_neurons_by_LMhead_avg_weights(head_path):
 
 def divide_zero(num, denom):
     return num / denom if denom else 0
+
+def linear_score(saved_model_path):
+    model = PosTaggerWholeVector()
+    model.load_state_dict(torch.load(saved_model_path))
+    weights = model.fc1.weight
+    values = weights.abs().mean(dim=0).detach().cpu().numpy()
+    return values
+
+def cluster_score(means_path):
+    with open(means_path, 'rb') as f:
+        v = pickle.load(f)
+    diff_sum = get_diff_sum(list(v.values()))
+    # diff_sum.sort()
+    # diff_sum = diff_sum[::-1]
+    return diff_sum
+
+def bayes_score(res_file_path):
+    scores = np.zeros(768, dtype=np.float32)
+    prev_mi = 0.
+    with open(res_file_path,'r') as f:
+        for line in f.readlines():
+            if line.startswith('added neuron'):
+                curr_neuron = int(line.split()[-1])
+            if line.startswith('mi on dev set:'):
+                curr_mi = float(line.split()[-1])
+                scores[curr_neuron]=(curr_mi - prev_mi)
+                prev_mi = curr_mi
+    return np.array(scores)
+
+def scaling(scores: np.ndarray, upper_bound: float, lower_bound=0):
+    new_scores = (scores - scores.min()) / (scores.max() - scores.min())
+    new_scores = new_scores * (upper_bound - lower_bound) + lower_bound
+    return new_scores
+
+def lnscale(neurons_list, upper_bound:float, lower_bound=0):
+    lnsp = np.logspace(np.log(upper_bound), np.log(1 / 1000 if lower_bound == 0 else lower_bound), 768, base=np.e)
+    scores = np.array([lnsp[neurons_list.index(i)] if i in neurons_list else 0 for i in range(768)], dtype=np.float32)
+    return scores
