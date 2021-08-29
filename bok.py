@@ -169,6 +169,7 @@ class bokehPlots():
                     clwv = np.array([r[1] for r in self.res[method]['c lemma w val']]) * wrong_preds
                     to_plot[inter_type] = (wrong_preds, clwv)
             all_rankings_res[ranking] = to_plot[r'ln scale $\alpha=8$']
+            # all_rankings_res[ranking] = to_plot['ablation']
             # wrong_preds_ablation = np.array([r[1] for r in self.res[ranking]['wrong words']])
             # clwv_ablation = np.array([r[1] for r in self.res[ranking]['c lemma w val']]) * wrong_preds_ablation
             # wrong_preds_intervention = np.array([r[1] for r in self.res[ranking+'_intervention']['wrong words']])
@@ -425,7 +426,7 @@ def plot_and_dump(langs):
         pickle.dump(res, f)
     return res
 
-def new_plot_and_dump(langs):
+def new_plot_and_dump(langs, dump=False):
     res = {}
     for lan in langs:
         res[lan] = {}
@@ -442,16 +443,17 @@ def new_plot_and_dump(langs):
                 bok = bokehPlots(lan, att_path.name, layer)
                 bok.load_data()
                 res[lan][att_path.name][layer] = bok.plot_line()
-    with open(Path('results', 'UM', 'max_clwv_lnscale.pkl'),'wb+') as f:
-        pickle.dump(res, f)
+    if dump:
+        with open(Path('results', 'UM', 'max_clwv_lnscale.pkl'),'wb+') as f:
+            pickle.dump(res, f)
 
 if __name__ == "__main__":
     languages = ['eng', 'spa', 'fra']
     # languages = ['fra']
     # plot_and_dump(languages)
     # create_dataset(languages)
-    # new_plot_and_dump(languages)
-    create_dataset(languages)
+    new_plot_and_dump(languages)
+    # create_dataset(languages)
 
 
 
