@@ -167,7 +167,7 @@ class bokehPlots():
                 if self.res[method]['wrong words']:
                     wrong_preds = np.array([r[1] for r in self.res[method]['wrong words']])
                     clwv = np.array([r[1] for r in self.res[method]['c lemma w val']]) * wrong_preds
-                    to_plot[inter_type] = (wrong_preds, clwv)
+                    to_plot[inter_type] = (wrong_preds[:31], clwv[:31])
             all_rankings_res[ranking] = to_plot[r'ln scale $\alpha=8$']
             # all_rankings_res[ranking] = to_plot['ablation']
             # wrong_preds_ablation = np.array([r[1] for r in self.res[ranking]['wrong words']])
@@ -226,7 +226,8 @@ class bokehPlots():
     def plot_by_plt(self, x_ticks, stats, ranking, within_ranking):
         # if ranking != 'by top cluster':
         #     return
-        plt.figure(figsize=[12., 4.8])
+        # plt.figure(figsize=[12., 4.8])
+        plt.figure(figsize=[6.8, 5.4])
         ax = plt.subplot(111)
         legend_labels, legend_lines = [], []
         # colors = {name: color for name, color in zip(names, self.line_colors)}
@@ -247,7 +248,7 @@ class bokehPlots():
         ax.xaxis.set_major_locator(loc)
         # ax.set_xticklabels(ax.get_xticks(), rotation=45)
         ax.tick_params(axis='both', which='major', labelsize=16)
-        ax.legend(legend_lines, legend_labels, ncol=4, loc='center left', bbox_to_anchor=(0.1, 1.2), fontsize=12)
+        ax.legend(legend_lines, legend_labels, ncol=3, loc='center left', bbox_to_anchor=(-0.11, 1.12), fontsize=12)
         plt.tight_layout()
         plt.savefig(Path(self.root_path, 'figs', ranking + '_combined.png'))
         plt.close()

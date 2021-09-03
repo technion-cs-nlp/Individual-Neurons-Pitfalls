@@ -76,7 +76,8 @@ class plots():
             else:
                 ax.set_position([box.x0, box.y0, box.width, box.height])
                 # ax.legend(legend_lines, legend_labels, loc='center left', bbox_to_anchor=(1, 0.5), fontsize=12)
-                # figlegend = plt.figure(figsize=[12., 4.8])
+                # figlegend = plt.figure(figsize=[12., 0.4])
+                # legend_labels = ['Linear by Linear', 'Gaussian by Gaussian', 'Linear by Gaussian', 'Gaussian by random']
                 # figlegend.legend(legend_lines, legend_labels, ncol=4, loc='center', fontsize=12)
                 # plt.tight_layout()
                 # figlegend.show()

@@ -119,47 +119,53 @@ def plot_heatmap(num_neurons):
     matrix = pd.DataFrame(index=indices, columns=indices)
     for layer in layers:
         rankings_overlap = {}
-        for r_1, r_2 in combinations(rankings, 2):
+        # for r_1, r_2 in combinations(rankings, 2):
+        for r in rankings:
             diag = []
             labels = []
             for i_1, i_2 in product(indices, repeat=2):
-                # if i_1 == i_2:
-                #     continue
+                if i_1 == i_2:
+                    continue
                 att_1, lan_1 = i_1.split(', ')
                 att_2, lan_2 = i_2.split(', ')
-                l_1 = top_neurons[(att_1, lan_1, layer, r_1)].values[:x]
-                l_2 = top_neurons[(att_2, lan_2, layer, r_2)].values[:x]
+                # l_1 = top_neurons[(att_1, lan_1, layer, r_1)].values[:x]
+                # l_1 = top_neurons[(att_1, lan_1, layer, r_1)].values[:x]
+                # l_2 = top_neurons[(att_2, lan_2, layer, r_2)].values[:x]
+                # l_2 = top_neurons[(att_2, lan_2, layer, r_2)].values[:x]
+                l_1 = top_neurons[(att_1, lan_1, layer, r)].values[:x]
+                l_2 = top_neurons[(att_2, lan_2, layer, r)].values[:x]
                 matrix[i_1][i_2] = len(np.intersect1d(l_1, l_2, assume_unique=True))
                 if i_1 == i_2:
                     diag.append(len(np.intersect1d(l_1, l_2, assume_unique=True)))
                     labels.append(i_1)
 
             matrix = matrix.astype(float)
-            # h = sns.heatmap(matrix, vmin=0, vmax=75, xticklabels=True, yticklabels=True)
-            # h.set_xticklabels(h.get_xmajorticklabels(), fontsize=6)
-            # h.set_yticklabels(h.get_ymajorticklabels(), fontsize=6)
-            # h.set_facecolor('grey')
+            h = sns.heatmap(matrix, vmin=0, vmax=75, xticklabels=True, yticklabels=True)
+            h.set_xticklabels(h.get_xmajorticklabels(), fontsize=6)
+            h.set_yticklabels(h.get_ymajorticklabels(), fontsize=6)
+            h.set_facecolor('grey')
             # title = f'layer {str(layer)} by {r_1}, {r_2}'
+            title = f'layer {str(layer)} by {r} by att'
             # plt.title(title)
-            # plt.tight_layout()
+            plt.tight_layout()
             save_dir = Path('results', 'overlaps')
             if not save_dir.exists():
                 save_dir.mkdir()
-            # plt.savefig(Path(save_dir, title))
-            # plt.close()
+            plt.savefig(Path(save_dir, title))
+            plt.close()
             # plt.show()
-            rankings_overlap[(r_1, r_2)] = diag
-        all_three = []
-        for i in indices:
-            att, lan = i.split(', ')
-            l_1 = top_neurons[(att, lan, layer, rankings[0])].values[:x]
-            l_2 = top_neurons[(att, lan, layer, rankings[1])].values[:x]
-            l_3 = top_neurons[(att, lan, layer, rankings[2])].values[:x]
-            intersection = np.intersect1d(l_1, l_2, assume_unique=True)
-            intersection = np.intersect1d(intersection, l_3, assume_unique=True)
-            all_three.append(len(intersection))
-        rankings_overlap['all'] = all_three
-        plot_bar(rankings_overlap, labels, 8, layer, save_dir)
+        #     rankings_overlap[(r_1, r_2)] = diag
+        # all_three = []
+        # for i in indices:
+        #     att, lan = i.split(', ')
+        #     l_1 = top_neurons[(att, lan, layer, rankings[0])].values[:x]
+        #     l_2 = top_neurons[(att, lan, layer, rankings[1])].values[:x]
+        #     l_3 = top_neurons[(att, lan, layer, rankings[2])].values[:x]
+        #     intersection = np.intersect1d(l_1, l_2, assume_unique=True)
+        #     intersection = np.intersect1d(intersection, l_3, assume_unique=True)
+        #     all_three.append(len(intersection))
+        # rankings_overlap['all'] = all_three
+        # plot_bar(rankings_overlap, labels, 8, layer, save_dir)
 
 def plot_bar(data: dict, settings, num_to_show, layer, save_dir):
     random_2 = 13
