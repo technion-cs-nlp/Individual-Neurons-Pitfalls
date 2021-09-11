@@ -32,17 +32,20 @@ def get_diff_sum(arr):
 
 if __name__ == "__main__":
     argparser = ArgumentParser()
+    argparser.add_argument('-model', type=str)
     argparser.add_argument('-language', type=str)
     argparser.add_argument('-attribute', type=str)
     argparser.add_argument('-layer', type=int)
     args = argparser.parse_args()
+    model_type = args.model
     language = args.language
     attribute = args.attribute
     layer = args.layer
+    print(f'model: {model_type}')
     print(f'language: {language}')
     print(f'attribute: {attribute}')
     print(f'layer: {layer}')
-    root_path = Path('pickles', 'UM', language)
+    root_path = Path('pickles', 'UM', model_type, language)
     if not Path(root_path, attribute).exists():
         sys.exit('WRONG SETTING')
     values_avg, values_avg_with_labels = get_values_avg(root_path, attribute, layer)

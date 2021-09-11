@@ -12,16 +12,20 @@ from argparse import ArgumentParser
 import sys
 
 def get_ranking(args):
-    func, path = args
+    func, path = args[0], args[1]
     if path != None:
-        rank = func(path)
+        if len(args) == 3:
+            rank = func(path, args[2])
+        else:
+            rank = func(path)
     else:
         rank = func()
     return rank
 
 class Bayesian():
-    def __init__(self, layer, data_name, control=False, small_dataset = False, language='', attribute='POS'):
+    def __init__(self, layer, data_name, model_type, control=False, small_dataset = False, language='', attribute='POS'):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model_type = model_type
         self.layer = layer
         self.control = control
         self.language = language
@@ -31,29 +35,29 @@ class Bayesian():
             self.UM_data_prep()
         else:
             self.train_features = utils.load_obj('features_tensor_layer_'+str(self.layer)+small_dataset_str,
-                                                 self.device,'train_',data_name).to(self.device)
+                                                 self.device,'train_',data_name, model_type).to(self.device)
             if self.control:
                 self.train_labels = torch.tensor(utils.load_obj(
-                    'control_tags'+small_dataset_str,self.device,'train_',data_name)).to(self.device)
+                    'control_tags'+small_dataset_str,self.device,'train_',data_name, model_type)).to(self.device)
             else:
                 self.train_labels = utils.load_obj(
-                    'labels_tensor'+small_dataset_str,self.device,'train_',data_name).to(self.device)
+                    'labels_tensor'+small_dataset_str,self.device,'train_',data_name, model_type).to(self.device)
             self.dev_features = utils.load_obj('features_tensor_layer_'+str(self.layer)+small_dataset_str,
-                                                 self.device,'dev_',data_name).to(self.device)
+                                                 self.device,'dev_',data_name, model_type).to(self.device)
             if self.control:
                 self.dev_labels = torch.tensor(utils.load_obj(
-                    'control_tags'+small_dataset_str,self.device,'dev_',data_name)).to(self.device)
+                    'control_tags'+small_dataset_str,self.device,'dev_',data_name, model_type)).to(self.device)
             else:
                 self.dev_labels = utils.load_obj(
-                    'labels_tensor'+small_dataset_str,self.device,'dev_',data_name).to(self.device)
+                    'labels_tensor'+small_dataset_str,self.device,'dev_',data_name, model_type).to(self.device)
             self.test_features = utils.load_obj(
-                'features_tensor_layer_'+str(self.layer)+small_dataset_str,self.device,'test_',data_name).to(self.device)
+                'features_tensor_layer_'+str(self.layer)+small_dataset_str,self.device,'test_',data_name, model_type).to(self.device)
             if self.control:
                 self.test_labels = torch.tensor(utils.load_obj(
-                    'control_tags'+small_dataset_str,self.device,'test_',data_name)).to(self.device)
+                    'control_tags'+small_dataset_str,self.device,'test_',data_name, model_type)).to(self.device)
             else:
                 self.test_labels = utils.load_obj(
-                    'labels_tensor'+small_dataset_str,self.device,'test_',data_name).to(self.device)
+                    'labels_tensor'+small_dataset_str,self.device,'test_',data_name, model_type).to(self.device)
         self.labels_dim = len(set(self.train_labels.tolist()))
         self.get_categorical()
         self.get_mean_and_cov()
@@ -64,14 +68,14 @@ class Bayesian():
     def UM_data_prep(self):
         self.train_features, self.dev_features, self.test_features = [], [], []
         self.train_labels, self.dev_labels, self.test_labels = [], [], []
-        att_path = Path('pickles', 'UM', self.language, self.attribute)
+        att_path = Path('pickles', 'UM', self.model_type, self.language, self.attribute)
         label_to_idx_file = Path(att_path, 'label_to_idx.pkl')
         with open(label_to_idx_file, 'rb') as f:
             label_to_idx = pickle.load(f)
         for set_name, set_features, set_labels in zip(['train_','dev_','test_'],
                                                       [self.train_features,self.dev_features,self.test_features],
                                                       [self.train_labels,self.dev_labels,self.test_labels]):
-            parsed_data_path = Path('pickles', 'UM', self.language, set_name+'parsed.pkl')
+            parsed_data_path = Path('pickles', 'UM', self.model_type, self.language, set_name+'parsed.pkl')
             with open(parsed_data_path, 'rb') as f:
                 parsed_data = pickle.load(f)
             with open(Path(att_path, 'values_to_ignore.pkl'),'rb') as f:
@@ -203,15 +207,7 @@ class Bayesian():
 
 def greedy_selection(bayes:Bayesian, by_mi:bool, by_best=True, from_log=False):
     selected_neurons = []
-    if from_log:
-        logs = {2: {True: [654, 512, 92, 360, 321, 144, 712, 497, 430, 265, 98, 556, 147, 487, 213, 209, 685, 104, 320, 363, 703, 19, 495, 291, 327, 405, 377, 501, 623, 157, 510, 44, 462, 208, 159, 375, 563, 103, 515, 273, 698, 443, 96, 463, 402, 502, 646, 294, 605, 399, 545, 410, 529, 30, 207, 63, 132, 651, 178, 356, 176, 446, 124, 456, 429, 575, 332, 393, 165, 197, 283, 286, 1, 9, 573, 521, 439, 34, 656, 668, 470, 746, 518, 226, 672, 740, 509, 282, 205, 93, 384, 274, 534, 546, 51, 436, 408, 60, 733, 225, 263, 578, 522, 693, 749, 170, 709, 628, 284, 65, 73, 189, 695, 755, 691, 121, 452, 288, 448, 572, 171, 336, 116, 617, 391, 117, 652, 293, 682, 420, 650, 599, 174, 15, 514, 396, 642, 689, 423, 417, 218, 358, 700, 664],
-                    False: [190, 188, 241, 325, 577, 315, 57, 709, 387, 724, 259, 374, 382, 469, 661, 310, 422, 47, 192, 252, 548, 136, 565, 288, 223, 762, 76, 28, 120, 677, 753, 377, 154, 285, 409, 49, 499, 68, 388, 690, 36, 240, 257, 452, 542, 180, 24, 567, 403, 413, 172, 84, 675, 705, 309, 271, 115, 559, 461, 369, 576, 362, 129, 638, 614, 528, 345, 251, 702, 228, 322, 719, 237, 135, 500, 624, 56, 734, 300, 7, 431, 699, 348, 511, 555, 74, 629, 125, 581, 175, 701, 204, 238, 652, 571, 367, 264, 186, 589, 301, 134, 508, 330, 681, 177, 200, 678, 662, 160, 725, 674, 128, 739, 471, 626, 554, 562, 606, 368, 353, 89, 411, 569, 334, 654, 53, 298, 99, 130, 506, 328, 80, 193, 31, 490, 520, 639, 71, 630, 102, 550, 660, 50, 758, 272]},
-                7:{True: [145, 757, 305, 12, 685, 321, 41, 522, 234, 404, 298, 393, 267, 242, 101, 292, 307, 365, 662, 220, 317, 508, 689, 565, 408, 752, 52, 415, 342, 759, 640, 459, 359, 631, 734, 722, 245, 495, 262, 740, 202, 582, 225, 601, 224, 688, 165, 314, 633, 384, 186, 497, 504, 475, 30, 155, 250, 257, 518, 311, 320, 741, 196, 536, 74, 523, 627, 217, 478, 546, 679, 767, 665, 92, 98, 22, 43, 719, 549, 44, 556, 514, 103, 179, 620, 728, 680, 356, 231, 201, 414, 594, 18, 266, 547, 388, 737, 711, 531, 158, 709, 223, 750, 272, 391, 507, 88, 328, 51, 456, 193, 34, 608, 470, 400, 287, 485, 488, 647, 170, 425, 554, 732, 684, 230, 625, 286, 335, 443, 96, 297, 394, 584, 730, 592, 13, 48, 332, 708, 441, 67, 432, 446, 207],
-                   False: [190, 576, 283, 705, 260, 494, 251, 411, 296, 427, 696, 575, 702, 691, 710, 319, 119, 8, 351, 529, 254, 527, 329, 469, 403, 492, 24, 367, 438, 386, 370, 744, 645, 236, 675, 347, 607, 611, 338, 81, 554, 247, 144, 457, 295, 128, 520, 33, 690, 323, 634, 293, 356, 154, 212, 751, 743, 600, 5, 676, 374, 309, 681, 671, 169, 256, 200, 235, 56, 651, 614, 294, 268, 75, 649, 493, 546, 604, 376, 765, 70, 87, 264, 588, 26, 159, 273, 198, 587, 129, 289, 120, 324, 342, 279, 158, 401, 454, 729, 670, 344, 541, 148, 172, 359, 688, 149, 85, 179, 544, 280, 486, 468, 701, 232, 725, 659, 297, 660, 177, 313, 348, 22, 175, 167, 434, 712, 153, 341, 23, 181, 657, 300, 271, 204, 543, 134, 609, 222, 446, 552, 224, 564, 723]},
-                12:{True: [305, 321, 145, 101, 252, 267, 735, 762, 626, 722, 661, 18, 114, 685, 249, 214, 31, 479, 42, 684, 601, 397, 322, 580, 596, 719, 720, 430, 433, 563, 149, 646, 188, 627, 130, 759, 518, 550, 519, 423, 728, 410, 254, 659, 253, 66, 607, 578, 227, 439, 307, 320, 242, 110, 206, 292, 480, 456, 314, 454, 329, 675, 3, 408, 536, 379, 421, 734, 632, 582, 218, 11, 706, 514, 67, 339, 333, 38, 319, 612, 16, 633, 683, 286, 128, 517, 691, 462, 516, 718, 170, 119, 76, 207, 391, 505, 169, 275, 20, 651, 117, 682, 597, 613, 615, 724, 162, 561, 392, 443, 25, 396, 502, 389, 723, 236, 248, 556, 303, 19, 368, 638, 623, 449, 504, 246, 201, 140, 432, 703, 664, 196, 727, 239, 508, 259, 541, 736, 232, 277, 372, 606, 138, 171],
-                    False: [754, 348, 198, 82, 77, 734, 24, 119, 610, 677, 284, 243, 148, 529, 190, 753, 761, 564, 230, 109, 68, 251, 469, 105, 334, 660, 364, 755, 588, 158, 552, 277, 53, 8, 78, 672, 414, 766, 534, 102, 293, 425, 163, 743, 270, 260, 545, 422, 528, 169, 338, 589, 399, 312, 600, 132, 706, 193, 538, 690, 322, 701, 225, 120, 670, 705, 209, 47, 278, 52, 501, 141, 63, 98, 704, 289, 168, 208, 288, 220, 467, 17, 217, 241, 212, 535, 139, 122, 49, 302, 5, 637, 394, 328, 235, 653, 269, 330, 143, 187, 301, 702, 563, 29, 51, 242, 6, 555, 266, 616, 595, 273, 290, 320, 224, 484, 557, 285, 424, 59, 465, 173, 419, 154, 498, 644, 25, 304, 315, 540, 381, 717, 256, 459, 618, 149, 395, 162, 457, 33, 335, 509, 279, 297, 490]}}
-        selected_neurons = logs[bayes.layer][by_best]
-    for num_of_neurons in progressbar(range(len(selected_neurons), 500)):
+    for num_of_neurons in progressbar(range(len(selected_neurons), 400)):
     # for num_of_neurons in range(len(selected_neurons), constants.SUBSET_SIZE):
         best_neuron = -1
         best_acc = 0.
@@ -290,6 +286,7 @@ def run_bayes_on_subset(bayes:Bayesian, neurons):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
+    parser.add_argument('-model', type=str)
     parser.add_argument('-language', type=str)
     parser.add_argument('-attribute', type=str)
     parser.add_argument('-layer', type=int)
@@ -297,6 +294,7 @@ if __name__ == "__main__":
     parser.add_argument('--control', default=False, action='store_true')
     parser.add_argument('--from_log', default=False, action='store_true')
     args = parser.parse_args()
+    model_type = args.model
     language = args.language
     layer = args.layer
     attribute = args.attribute
@@ -308,17 +306,19 @@ if __name__ == "__main__":
     small_dataset_str = '_small' if small_dataset else ''
     data_name = 'UM'
     greedy = True if ranking.startswith('greedy') else False
-    res_file_dir = Path('results', data_name, language, attribute, 'layer ' + str(layer))
+    label_to_idx_path = Path('pickles', 'UM', model_type, language, attribute, 'label_to_idx.pkl')
+    if not label_to_idx_path.exists():
+        sys.exit('WRONG SETTING')
+    res_file_dir = Path('results', data_name, model_type, language, attribute, 'layer ' + str(layer))
     if not res_file_dir.exists():
         res_file_dir.mkdir(parents=True, exist_ok=True)
-    linear_model_path = Path('pickles', data_name, language, attribute,
+    linear_model_path = Path('pickles', data_name, model_type, language, attribute,
                              'best_model_whole_vector_layer_' + str(layer) + control_str + small_dataset_str)
-    cluster_ranking_path = Path('pickles', 'UM', language, attribute, str(layer), 'cluster_ranking.pkl')
+    cluster_ranking_path = Path('pickles', 'UM', model_type, language, attribute, str(layer), 'cluster_ranking.pkl')
     bayes_res_path = Path(res_file_dir,'bayes by bayes mi'+control_str)
     worst_bayes_res_path = Path(res_file_dir, 'bayes by worst mi'+control_str)
-    bayes = Bayesian(layer=layer, control=control, small_dataset=small_dataset, data_name=data_name,
+    bayes = Bayesian(model_type=model_type, layer=layer, control=control, small_dataset=small_dataset, data_name=data_name,
                      language=language, attribute=attribute)
-
     if ranking == 'greedy best':
         res_suffix = 'bayes mi'
     elif ranking == 'greedy worst':
@@ -330,6 +330,7 @@ if __name__ == "__main__":
     # res_file_name += '_tmp' #TODO
     with open(Path(res_file_dir, res_file_name), 'w+') as f:
         sys.stdout = f
+        print('model: ',model_type)
         print('layer: ', layer)
         print('control: ', control)
         print('small: ', small_dataset)
@@ -340,8 +341,11 @@ if __name__ == "__main__":
             print('by best: ', by_best)
             greedy_selection(bayes, by_mi=True, by_best=by_best, from_log=from_log)
         else:
-            ranking_params = {'top avg': (utils.sort_neurons_by_avg_weights, linear_model_path),
-                              'bottom avg': (utils.sort_neurons_by_avg_weights, linear_model_path),
+            with open(label_to_idx_path, 'rb') as f:
+                label_to_idx = pickle.load(f)
+            num_labels = len(label_to_idx)
+            ranking_params = {'top avg': (utils.sort_neurons_by_avg_weights, linear_model_path, num_labels),
+                              'bottom avg': (utils.sort_neurons_by_avg_weights, linear_model_path, num_labels),
                               'bayes mi': (utils.sort_neurons_by_bayes_mi, bayes_res_path),
                               'worst mi': (utils.sort_neurons_by_bayes_mi, worst_bayes_res_path),
                               'random': (utils.sort_neurons_by_random, None),

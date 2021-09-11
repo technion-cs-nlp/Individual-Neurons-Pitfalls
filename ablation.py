@@ -16,16 +16,19 @@ import pickle
 import copy
 
 
-def get_bert_features(data_path, data_name, language, layer):
-    data_handler = DataHandler(data_path, data_name=data_name, layer=layer, control=False, small_dataset=False,
-                               ablation=True, language=language)
+def get_bert_features(data_path, data_name, model_type, language, layer):
+    data_handler = DataHandler(data_path, data_name=data_name, model_type=model_type,
+                               layer=layer, control=False, small_dataset=False, ablation=True, language=language)
     data_handler.create_dicts()
     data_handler.get_features()
 
 def get_ranking(args):
-    func, path = args
+    func, path = args[0], args[1]
     if path != None:
-        rank = func(path)
+        if len(args) == 3:
+            rank = func(path, args[2])
+        else:
+            rank = func(path)
     else:
         rank = func()
     return rank
@@ -35,15 +38,15 @@ def collate_fn(batch):
     features = [item[1] for item in batch]
     return [sentences, features]
 
-def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=False, ranking='', step=0,
+def ablate(data_name, model_type, language, layer, neurons_list, attribute = '', one_by_one=False, ranking='', step=0,
            alpha=1, intervention=False, scaling=''):
     alpha_str = str(np.ceil(alpha.max())) if scaling else alpha
     set_name = 'test_'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = BertFromMiddle(layer)
+    model = BertFromMiddle(model_type, layer)
     skipped = []
     if data_name == 'UM':
-        dump_path = Path('pickles', data_name, language)
+        dump_path = Path('pickles', data_name, model_type, language)
         features_path = Path(dump_path, set_name + 'features_layer_'+str(layer))
         with open(features_path, 'rb') as f:
             set_features = pickle.load(f)
@@ -71,8 +74,8 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
             #     parsed_data = pickle.load(f)
     else:
         set_features = utils.load_obj('features_layer_' + str(layer),
-                                    device, 'train_', data_name, ablation=True)
-        set_sentences = utils.load_obj('clean_sentences', device, 'train_', data_name, ablation=True)
+                                    device, 'train_', data_name, ablation=True, model_type=model_type)
+        set_sentences = utils.load_obj('clean_sentences', device, 'train_', data_name, ablation=True, model_type=model_type)
     num_sentences = len(set_features)
     set_features_list = [set_features[i] for i in range(num_sentences) if i not in skipped]
     set_sentences = [set_sentences[i] for i in range(num_sentences) if i not in skipped]
@@ -173,7 +176,7 @@ def ablate(data_name, language, layer, neurons_list, attribute = '', one_by_one=
         print(sorted(range(len(accs)), key=accs.__getitem__, reverse=True))
         print('accs:')
         print(accs)
-    outputs_dir = Path('pickles','UM',language,attribute,str(layer))
+    outputs_dir = Path('pickles', 'UM', model_type, language, attribute, str(layer))
     if not outputs_dir.exists():
         outputs_dir.mkdir(parents=True, exist_ok=True)
     intervention_str = '_intervention' if intervention else ''
@@ -196,6 +199,7 @@ if __name__ == "__main__":
                   'fra': 'data/UM/fra/fr_gsd-um-test.conllu'}
     data_name = 'UM'
     parser = ArgumentParser()
+    parser.add_argument('-model', type=str)
     parser.add_argument('-language', type=str)
     parser.add_argument('-attribute', type=str)
     parser.add_argument('-layer', type=int)
@@ -205,6 +209,7 @@ if __name__ == "__main__":
     parser.add_argument('--intervention', default=False, action='store_true')
     parser.add_argument('-scaling', type=str)
     args = parser.parse_args()
+    model_type = args.model
     language = args.language
     attribute = args.attribute
     layer = args.layer
@@ -221,17 +226,21 @@ if __name__ == "__main__":
     alpha_str = str(alpha)
     scaling_str = scaling
     data_path = datas_path[language]
-    get_bert_features(data_path, data_name, language, layer)
-    res_file_dir = Path('results', data_name, language, args.attribute, 'layer ' + str(layer))
-    # if not res_file_dir.exists():
-    #     res_file_dir.mkdir(parents=True, exist_ok=True)
-    linear_model_path = Path('pickles', data_name, language, attribute,
+    get_bert_features(data_path, data_name, model_type, language, layer)
+    res_file_dir = Path('results', data_name, model_type, language, attribute, 'layer ' + str(layer))
+    if not res_file_dir.exists():
+        sys.exit('WRONG SETTING')
+    linear_model_path = Path('pickles', data_name, model_type, language, attribute,
                              'best_model_whole_vector_layer_' + str(layer) + control_str + small_dataset_str)
     bayes_res_path = Path(res_file_dir, 'bayes by bayes mi'+control_str)
     worst_bayes_res_path = Path(res_file_dir, 'bayes by worst mi'+control_str)
-    cluster_ranking_path = Path('pickles', 'UM', language, attribute, str(layer), 'cluster_ranking.pkl')
-    ranking_params = {'top avg': (utils.sort_neurons_by_avg_weights, linear_model_path),
-                'bottom avg': (utils.sort_neurons_by_avg_weights, linear_model_path),
+    cluster_ranking_path = Path('pickles', 'UM', model_type, language, attribute, str(layer), 'cluster_ranking.pkl')
+    label_to_idx_path = Path('pickles', data_name, model_type, language, attribute, 'label_to_idx.pkl')
+    with open(label_to_idx_path, 'rb') as f:
+        label_to_idx = pickle.load(f)
+    num_labels = len(label_to_idx)
+    ranking_params = {'top avg': (utils.sort_neurons_by_avg_weights, linear_model_path, num_labels),
+                'bottom avg': (utils.sort_neurons_by_avg_weights, linear_model_path, num_labels),
                 'bayes mi': (utils.sort_neurons_by_bayes_mi, bayes_res_path),
                 'worst mi': (utils.sort_neurons_by_bayes_mi, worst_bayes_res_path),
                 'random': (utils.sort_neurons_by_random, None),
@@ -245,7 +254,7 @@ if __name__ == "__main__":
         sys.exit('WRONG SETTING')
     if ranking == 'bottom avg' or ranking == 'bottom cluster':
         neurons_list = list(reversed(neurons_list))
-    means_path = Path('pickles', 'UM', language, attribute, str(layer), 'avg_embeddings_by_label.pkl')
+    means_path = Path('pickles', 'UM', model_type, language, attribute, str(layer), 'avg_embeddings_by_label.pkl')
     scaling_params = {'top avg': (utils.linear_score, linear_model_path),
                       'bayes mi': (utils.bayes_score, bayes_res_path),
                       'top cluster': (utils.cluster_score, means_path)}
@@ -265,6 +274,7 @@ if __name__ == "__main__":
         ablation_res_dir.mkdir()
     with open(Path(ablation_res_dir, res_file_name), 'w+') as f: ###############TODO
         sys.stdout = f
+        print('model: ', model_type)
         print('layer: ', layer)
         print('control: ', control)
         print('small: ', small_dataset)
@@ -274,7 +284,7 @@ if __name__ == "__main__":
         print('step: ', step)
         print('alpha: ', alpha)
         print('intervention:', intervention)
-        ablate(data_name,language,layer,neurons_list, attribute=attribute, ranking=ranking,
+        ablate(data_name, model_type, language, layer, neurons_list, attribute=attribute, ranking=ranking,
                step=step, alpha=alpha, intervention=intervention, scaling=scaling)
 
 

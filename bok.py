@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as plticker
 
 class bokehPlots():
-    def __init__(self, language, attr, layer):
+    def __init__(self, model_type, language, attr, layer):
+        self.model_type = model_type
         self.language = language
         self.attribute = attr
         self.layer = layer
@@ -39,7 +40,7 @@ class bokehPlots():
         #                    'ablation CLWV': 'dashed', 'mirroring CLWV': 'dashed'}
         self.metrics = ['correct lemma, correct value', 'correct lemma, wrong value',
                         'wrong lemma, correct value', 'wrong lemma, wrong value']
-        self.root_path = Path('results', 'UM', self.language, self.attribute, 'layer ' + str(self.layer), 'spacy')
+        self.root_path = Path('results', 'UM', self.model_type, self.language, self.attribute, 'layer ' + str(self.layer), 'spacy')
 
     def load_data(self):
         wrong_words_path = Path(self.root_path, 'wrong words')
@@ -241,14 +242,16 @@ class bokehPlots():
                             linestyle=self.linestyles['CLWV'])
         ax.set_xlabel('neurons', fontsize=16)
         ax.set_ylabel('fraction of all predictions', fontsize=16)
-        # ax.annotate('max(CLWV)', xy=(8.5, 0.38), xytext=(14, 0.6),
-        #             arrowprops=dict(facecolor='black', shrink=0.05, width=0.5, headwidth=8),
-        #             )
+        ax.annotate('saturation point', xy=(5.0, 0.37), xytext=(12, 0.55),
+                    arrowprops=dict(facecolor='black', shrink=0.05, width=0.5, headwidth=8),
+                    )
         loc = plticker.MultipleLocator(base=5.0)
         ax.xaxis.set_major_locator(loc)
         # ax.set_xticklabels(ax.get_xticks(), rotation=45)
         ax.tick_params(axis='both', which='major', labelsize=16)
-        ax.legend(legend_lines, legend_labels, ncol=3, loc='center left', bbox_to_anchor=(-0.11, 1.12), fontsize=12)
+        legend_labels = ['by ttb Linear', 'by ttb Cluster', 'by ttb Gaussian', 'by random',
+                         'by btt Linear', 'by btt Cluster', 'by btt Gaussian']
+        ax.legend(legend_lines, legend_labels, ncol=3, loc='center left', bbox_to_anchor=(-0.08, 1.12), fontsize=12)
         plt.tight_layout()
         plt.savefig(Path(self.root_path, 'figs', ranking + '_combined.png'))
         plt.close()
@@ -427,33 +430,34 @@ def plot_and_dump(langs):
         pickle.dump(res, f)
     return res
 
-def new_plot_and_dump(langs, dump=False):
+def new_plot_and_dump(model_type, langs, dump=False):
     res = {}
     for lan in langs:
         res[lan] = {}
-        lan_root_path = Path('results', 'UM', lan)
+        lan_root_path = Path('results', 'UM', model_type, lan)
         atts_path = [p for p in lan_root_path.glob('*') if not p.is_file()]
         for att_path in atts_path:
             if att_path.name == 'Part of Speech':
                 continue
             res[lan][att_path.name] = {}
-            # if att_path.name != 'Gender and Noun Class':
-            #     continue
-            for layer in [2, 7, 12]:
-            # for layer in [2]:
-                bok = bokehPlots(lan, att_path.name, layer)
+            if att_path.name != 'Gender and Noun Class':
+                continue
+            # for layer in [2, 7, 12]:
+            for layer in [2]:
+                bok = bokehPlots(model_type, lan, att_path.name, layer)
                 bok.load_data()
                 res[lan][att_path.name][layer] = bok.plot_line()
     if dump:
-        with open(Path('results', 'UM', 'max_clwv_lnscale.pkl'),'wb+') as f:
+        with open(Path('results', 'UM', model_type, 'max_clwv_lnscale.pkl'),'wb+') as f:
             pickle.dump(res, f)
 
 if __name__ == "__main__":
-    languages = ['eng', 'spa', 'fra']
-    # languages = ['fra']
+    # languages = ['eng', 'spa', 'fra']
+    model_type = 'bert'
+    languages = ['spa']
     # plot_and_dump(languages)
     # create_dataset(languages)
-    new_plot_and_dump(languages)
+    new_plot_and_dump(model_type, languages)
     # create_dataset(languages)
 
 

@@ -1,10 +1,10 @@
+import sentencepiece
 from argparse import ArgumentParser
-
 from conllu import parse_incr, TokenList
 import consts
 import yaml
 from typing import List, Tuple, Dict, Any
-from transformers import BertTokenizer, BertModel
+from transformers import BertTokenizer, BertModel, XLMRobertaModel, XLMRobertaTokenizer
 from tqdm import tqdm
 import pickle
 from os import path
@@ -131,14 +131,16 @@ test_paths = {'eng': 'data/UM/eng/en_ewt-um-test.conllu',
 
 if __name__ == "__main__":
     argparser = ArgumentParser()
+    argparser.add_argument('-model', type=str)
     argparser.add_argument('-language', type=str)
     args = argparser.parse_args()
+    model_type = args.model
     language = args.language
     print(f'language: {language}')
     train_path = train_paths[language]
     dev_path = dev_paths[language]
     test_path = test_paths[language]
-    pickles_root = Path('pickles','UM',language)
+    pickles_root = Path('pickles','UM', model_type, language)
     if not pickles_root.exists():
         pickles_root.mkdir()
     train_dump_path = Path(pickles_root,'train_parsed.pkl')
@@ -155,7 +157,7 @@ if __name__ == "__main__":
     test_lemmas_path = Path(pickles_root, 'test_lemmas.pkl')
     tags_file = "unimorph/tags.yaml"
     skip_existing = False
-    bert_name = 'bert-base-multilingual-cased'
+    model_name = 'bert-base-multilingual-cased' if model_type == 'bert' else 'xlm-roberta-base'
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     total = 0
 
@@ -166,7 +168,8 @@ if __name__ == "__main__":
     limit_number = None
     skipped: Dict[str, int] = {}
     # Setup BERT tokenizer here provisionally as we need to know which sentences have over 512 subtokens
-    tokenizer = BertTokenizer.from_pretrained(bert_name)
+    tokenizer = BertTokenizer.from_pretrained(model_name) if model_type == 'bert'\
+        else XLMRobertaTokenizer.from_pretrained(model_name)
     for file_path, dump_path, sentences_path, attributes_path, lemmas_path in zip(
             [test_path, dev_path, train_path],
             [test_dump_path, dev_dump_path, train_dump_path],
@@ -244,7 +247,8 @@ if __name__ == "__main__":
 
         print(f"Processing {file_path}...")
         # Setup BERT
-        model = BertModel.from_pretrained(bert_name).to(device)
+        model = BertModel.from_pretrained(model_name).to(device) if model_type == 'bert'\
+            else XLMRobertaModel.from_pretrained(model_name).to(device)
         # Subtokenize, keeping original token indices
         results = []
         sentences = {}
@@ -267,7 +271,7 @@ if __name__ == "__main__":
             lemmas.append({token['form']: token['lemma'] for token in tokenlist})
 
         with open(sentences_path, 'wb+') as f:
-            pickle.dump(sentences, f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(sentences, f)
         with open(lemmas_path,'wb+') as f:
             pickle.dump(lemmas, f)
         # Prepare to compute BERT embeddings

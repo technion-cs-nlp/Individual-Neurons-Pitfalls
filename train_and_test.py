@@ -22,7 +22,8 @@ def l2_penalty(var):
 def train(dataloader, model_name: str, lambda1=0.001, lambda2=0.01,
           save_path:str='', verbose:bool=False, reg:bool=True):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    classifier = models[model_name](dataloader.dataset[0][0].shape[0]).to(device)
+    num_labels = len(set([sample[1] for sample in dataloader.dataset]))
+    classifier = models[model_name](first_layer_size=dataloader.dataset[0][0].shape[0], num_labels=num_labels).to(device)
     cross_entropy = nn.CrossEntropyLoss()
     optimizer = optim.Adam(classifier.parameters(), lr=consts.LEARNING_RATE)
     best_loss=consts.INF

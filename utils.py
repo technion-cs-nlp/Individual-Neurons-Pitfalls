@@ -15,9 +15,9 @@ def save_obj(obj, file_name, device, name, data_name, ablation=False):
     with open(path, 'w+b') as f:
         pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
-def load_obj(file_name, device, name,data_name, ablation=False):
+def load_obj(file_name, device, name,data_name, model_type, ablation=False):
     path = os.path.join('pickles','ablation' if ablation else '',
-                        data_name, device.type + '_' + name + file_name + '.pkl')
+                        data_name, model_type, device.type + '_' + name + file_name + '.pkl')
     if not os.path.exists(path):
         return None
     with open(path, 'rb') as f:
@@ -33,8 +33,8 @@ def move_557_to_tail(func):
     return inner1
 
 
-def sort_neurons_by_avg_weights(saved_model_path:str):
-    model = PosTaggerWholeVector()
+def sort_neurons_by_avg_weights(saved_model_path:str, last_layer):
+    model = PosTaggerWholeVector(last_layer)
     model.load_state_dict(torch.load(saved_model_path))
     weights = model.fc1.weight
     sorted_weights = weights.abs().mean(dim=0).sort(descending=True).indices

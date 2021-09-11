@@ -1,6 +1,7 @@
+import sentencepiece
 import torch
 from torch import nn
-from transformers import BertTokenizer, BertModel, BertConfig, BertForMaskedLM, BertTokenizerFast
+from transformers import BertTokenizer, BertModel, BertConfig, BertForMaskedLM, BertTokenizerFast, XLMRobertaTokenizerFast, XLMRobertaForMaskedLM
 from transformers.models.bert.modeling_bert import BertOnlyMLMHead
 import consts
 
@@ -52,11 +53,13 @@ class BertWordEmbeds(nn.Module):
         return new_features
 
 class BertLM(nn.Module):
-    def __init__(self, layer):
+    def __init__(self, model_type, layer):
         super(BertLM, self).__init__()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
-        self.model = BertForMaskedLM.from_pretrained('bert-base-multilingual-cased')
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased') if model_type == 'bert'\
+            else XLMRobertaTokenizerFast.from_pretrained('xlm-roberta-base')
+        self.model = BertForMaskedLM.from_pretrained('bert-base-multilingual-cased') if model_type == 'bert'\
+            else XLMRobertaForMaskedLM.from_pretrained('xlm-roberta-base')
         self.layer = layer
 
     def forward(self, sentence):
@@ -159,14 +162,18 @@ def specific_words_acc(relevant_indices, preds, labels, with_att:bool):
 
 
 class BertFromMiddle(nn.Module):
-    def __init__(self, layer):
+    def __init__(self, model_type, layer):
         super(BertFromMiddle, self).__init__()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.tokenizer = BertTokenizerFast.from_pretrained('bert-base-multilingual-cased')
+        self.tokenizer = BertTokenizerFast.from_pretrained('bert-base-multilingual-cased') if model_type == 'bert'\
+            else XLMRobertaTokenizerFast.from_pretrained('xlm-roberta-base')
         self.layer = layer
-        self.bert = BertForMaskedLM.from_pretrained('bert-base-multilingual-cased').to(self.device)
-        self.layers = self.bert.bert.encoder.layer[self.layer:]
-        self.classifier = self.bert.cls
+        self.bert = BertForMaskedLM.from_pretrained('bert-base-multilingual-cased').to(self.device) if model_type == 'bert'\
+            else XLMRobertaForMaskedLM.from_pretrained('xlm-roberta-base')
+        self.layers = self.bert.bert.encoder.layer[self.layer:] if model_type == 'bert' else self.bert.roberta.encoder.layer[self.layer:]
+        self.classifier = self.bert.cls if model_type == 'bert' else self.bert.lm_head
+        self.prefix_char = '##' if model_type == 'bert' else '_'
+        self.model_type = model_type
 
     def get_lemma_ranks(self, words_to_tokens, tokens_to_words, pred_scores, labels, lemmas, relevant_indices):
         res = []
@@ -231,8 +238,11 @@ class BertFromMiddle(nn.Module):
                 curr_word_first = batch_labels.encodings[i].offsets[token_idx][0]
                 prev_word_last = batch_labels.encodings[i].offsets[token_idx - 1][1]
                 curr_token = batch_labels.encodings[i].tokens[token_idx]
-                if curr_word_first == prev_word_last != 0 and not curr_token.startswith('##'):
-                    splits += 1
+                if curr_word_first == prev_word_last != 0:
+                    if self.model_type == 'bert' and not curr_token.startswith(self.prefix_char):
+                        splits += 1
+                    elif self.model_type == 'xlm' and curr_token.startswith(self.prefix_char):
+                        splits += 1
                 if len(words_to_tokens[i]) == word - splits:
                     words_to_tokens[i].append([token_idx])
                 else:
@@ -314,14 +324,14 @@ class BertFromMiddle(nn.Module):
 
 
 class PosTagger(nn.Module):
-    def __init__(self, first_layer_size):
+    def __init__(self):
         super(PosTagger, self).__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class PosTaggerWholeVector(PosTagger):
-    def __init__(self, first_layer_size=0):
-        super(PosTaggerWholeVector, self).__init__(first_layer_size)
-        self.fc1 = nn.Linear(consts.BERT_OUTPUT_DIM, consts.LABEL_DIM).to(self.device)
+    def __init__(self, num_labels, first_layer_size=0):
+        super(PosTaggerWholeVector, self).__init__()
+        self.fc1 = nn.Linear(consts.BERT_OUTPUT_DIM, num_labels).to(self.device)
     def forward(self, features):
         preds = self.fc1(features)
         return preds
@@ -353,9 +363,9 @@ class SinglePosPredictor(PosTagger):
         return preds
 
 class PosTaggerSubset(PosTagger):
-    def __init__(self,first_layer_size):
-        super(PosTaggerSubset, self).__init__(first_layer_size)
-        self.fc1 = nn.Linear(first_layer_size, consts.LABEL_DIM)
+    def __init__(self, first_layer_size, num_labels):
+        super(PosTaggerSubset, self).__init__()
+        self.fc1 = nn.Linear(first_layer_size, num_labels)
         # self.relu = nn.ReLU()
         # self.fc2 = nn.Linear(HIDDEN_LAYER_DIM, LABEL_DIM)
     def forward(self, features):

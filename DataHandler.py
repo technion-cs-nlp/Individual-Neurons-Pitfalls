@@ -12,7 +12,7 @@ from tqdm import tqdm as progressbar
 from pathlib import Path
 
 class DataHandler():
-    def __init__(self, file_path: str, data_name, layer=12, control=False, small_dataset = False,
+    def __init__(self, file_path: str, data_name, model_type, layer=12, control=False, small_dataset = False,
                  ablation=False, language = '', attribute='POS'):
         self.file_path=file_path
         if 'train' in str(file_path):
@@ -24,6 +24,7 @@ class DataHandler():
         # self.data_name = 'PENN TO UD' if 'PENN TO UD' in file_path else \
         #     'PENN' if 'PENN' in file_path else 'UD'
         self.data_name = data_name
+        self.model_type = model_type
         self.language = language
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.clean_sentences = {}
@@ -39,12 +40,12 @@ class DataHandler():
 
     def save_obj(self, obj, file_name):
         path = os.path.join('pickles', 'ablation' if self.ablation else '',
-                            self.data_name, self.device.type +'_' + self.set_name + file_name + '.pkl')
+                            self.data_name, self.model_type, self.device.type +'_' + self.set_name + file_name + '.pkl')
         with open(path, 'w+b') as f:
-            pickle.dump(obj,f,pickle.HIGHEST_PROTOCOL)
+            pickle.dump(obj,f)
 
     def load_obj(self, file_name):
-        path = os.path.join('pickles', 'ablation' if self.ablation else '', self.data_name,
+        path = os.path.join('pickles', 'ablation' if self.ablation else '', self.data_name, self.model_type,
                              self.device.type +'_' + self.set_name + file_name + '.pkl')
         if not os.path.exists(path):
             return None
@@ -59,10 +60,10 @@ class DataHandler():
         elif self.data_name == 'PENN TO UD':
             self.create_dicts_penn_to_ud()
         elif self.data_name == 'UM':
-            parsed_data_path = Path('pickles', 'UM', self.language, self.set_name + 'parsed.pkl')
+            parsed_data_path = Path('pickles', 'UM', self.model_type, self.language, self.set_name + 'parsed.pkl')
             with open(parsed_data_path, 'rb') as f:
                 self.parsed_data = pickle.load(f)
-            sent_path = Path('pickles','UM', self.language, 'new_' + self.set_name + 'sentences.pkl')
+            sent_path = Path('pickles','UM', self.model_type, self.language, 'new_' + self.set_name + 'sentences.pkl')
             with open(sent_path,'rb') as f:
                 self.clean_sentences = pickle.load(f)
 
@@ -147,11 +148,11 @@ class DataHandler():
             self.features_tensor = self.load_obj('features_tensor_' + str(self.layer) + self.small_str)
             return
         if self.data_name == 'UM':
-            dump_path = Path('pickles', self.data_name, self.language, self.set_name+'features_layer_'+str(self.layer))
+            dump_path = Path('pickles', self.data_name, self.model_type, self.language, self.set_name+'features_layer_'+str(self.layer))
             if dump_path.exists():
                 return
         self.features_tensor, self.features_by_sentece = [], {}
-        bert_model = BertLM(self.layer)
+        bert_model = BertLM(self.model_type, self.layer)
         total_loss, total_correct, total_tokens = 0., 0., 0.
         skipped = []
         for idx in progressbar(range(min(consts.ABLATION_NUM_SENTENCES, len(self.clean_sentences.keys())))):
@@ -173,12 +174,13 @@ class DataHandler():
         print('whole vector loss: ', total_loss)
         print('whole vector accuracy: ', total_correct / total_tokens)
         if self.data_name == 'UM':
-            dump_path = Path('pickles', self.data_name, self.language,
+            dump_path = Path('pickles', self.data_name, self.model_type, self.language,
                              self.set_name + 'features_layer_' + str(self.layer))
             with open(dump_path, 'wb+') as f:
-                pickle.dump(self.features_by_sentece, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump(self.features_by_sentece, f)
             if skipped:
-                dump_path = Path('pickles',self.data_name, self.language, self.set_name + 'skipped_sentences.pkl')
+                dump_path = Path('pickles', self.data_name, self.model_type,
+                                 self.language, self.set_name + 'skipped_sentences.pkl')
                 with open(dump_path,'wb+'):
                     pickle.dump(skipped, f)
             return
@@ -292,16 +294,16 @@ class SingleLabel(DataHandler):
         return features_and_labels
 
 class UMDataHandler(DataHandler):
-    def __init__(self, file_path:str, data_name:str, layer=12, control=False, small_dataset=False,
+    def __init__(self, file_path:str, data_name:str, model_type, layer=12, control=False, small_dataset=False,
                  language='', attribute='POS'):
-        super(UMDataHandler, self).__init__(file_path, data_name=data_name, layer=layer, control=control,
+        super(UMDataHandler, self).__init__(file_path, data_name=data_name, model_type=model_type, layer=layer, control=control,
                                          small_dataset=small_dataset, language=language, attribute=attribute)
         self.parsed_data = None
 
     def create_dataset(self, neurons: list=None):
         if neurons == None:
             neurons = list(range(consts.BERT_OUTPUT_DIM))
-        att_path = Path('pickles','UM',self.language,self.attribute)
+        att_path = Path('pickles','UM', self.model_type, self.language,self.attribute)
         with open(Path(att_path, 'values_to_ignore.pkl'), 'rb') as f:
             values_to_ignore = pickle.load(f)
         filtered_data = []
@@ -323,7 +325,7 @@ class UMDataHandler(DataHandler):
             possible_labels = set([word[self.attribute] for word in filtered_data])
             label_to_idx = {label: i for i, label in enumerate(possible_labels)}
             with open(label_to_idx_file,'wb+') as f:
-                pickle.dump(label_to_idx,f,pickle.HIGHEST_PROTOCOL)
+                pickle.dump(label_to_idx,f)
         else:
             with open(label_to_idx_file,'rb') as f:
                 label_to_idx = pickle.load(f)
@@ -342,7 +344,7 @@ class UMDataHandler(DataHandler):
                                 torch.randint(high=possible_labels, size=[1]).item()
                                   for word in words_set}
             with open(control_labels_file, 'wb+') as f:
-                pickle.dump(control_labels,f,pickle.HIGHEST_PROTOCOL)
+                pickle.dump(control_labels,f)
         else:
             with open(control_labels_file, 'rb') as f:
                 control_labels = pickle.load(f)

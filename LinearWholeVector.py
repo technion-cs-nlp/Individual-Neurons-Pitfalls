@@ -21,12 +21,14 @@ def print_statistics(data_loader: DataLoader):
 if __name__ == "__main__":
     torch.manual_seed(consts.SEED)
     parser = ArgumentParser()
+    parser.add_argument('-model', type=str)
     parser.add_argument('-language', type=str)
     parser.add_argument('-attribute', type=str)
     parser.add_argument('-layer', type=int)
     parser.add_argument('--control', default=False, action='store_true')
     args = parser.parse_args()
     min_count = 100
+    model_type = args.model
     language = args.language
     attribute = args.attribute
     layer = args.layer
@@ -35,21 +37,23 @@ if __name__ == "__main__":
     small_dataset = False
     control_str = '_control' if control else ''
     small_dataset_str = '_small' if small_dataset else ''
-    save_path = Path('pickles', data_name, language, args.attribute)
+    save_path = Path('pickles', data_name, model_type, language, args.attribute)
     if not save_path.exists():
         save_path.mkdir(parents=True, exist_ok=True)
     file_name = 'best_model_whole_vector_layer_' + str(layer) + control_str + small_dataset_str
     save_path = Path(save_path, file_name)
-    train_path = Path('pickles',data_name,language,'train_parsed.pkl')
-    dev_path = Path('pickles', data_name, language, 'dev_parsed.pkl')
-    test_path = Path('pickles', data_name, language, 'test_parsed.pkl')
-    res_file_dir = Path('results', data_name, language, args.attribute, 'layer ' + str(layer))
+    train_path = Path('pickles', data_name, model_type, language, 'train_parsed.pkl')
+    dev_path = Path('pickles', data_name, model_type, language, 'dev_parsed.pkl')
+    test_path = Path('pickles', data_name, model_type, language, 'test_parsed.pkl')
+    res_file_dir = Path('results', data_name, model_type, language, args.attribute, 'layer ' + str(layer))
     if not res_file_dir.exists():
         res_file_dir.mkdir(parents=True, exist_ok=True)
     res_file_name = 'whole vector' + control_str
     with open(Path(res_file_dir, res_file_name), 'w+') as f:
         sys.stdout = f
         print('data: ', data_name)
+        print('model:', model_type)
+        print('language:', language)
         print('attribute: ', attribute)
         print('layer: ', layer)
         print('control: ', control)
@@ -57,11 +61,11 @@ if __name__ == "__main__":
         # data_name = 'PENN TO UD' if 'PENN TO UD' in train_path else 'PENN' if 'PENN' in train_path else 'UD'
         data_model = UMDataHandler if data_name=='UM' else DataSubset
         print('creating dataset')
-        train_data_handler = data_model(train_path, data_name, layer=layer, control=control,
+        train_data_handler = data_model(train_path, data_name, model_type=model_type, layer=layer, control=control,
                                     small_dataset=small_dataset, language=language, attribute=attribute)
-        dev_data_handler = data_model(dev_path, data_name, layer=layer, control=control,
+        dev_data_handler = data_model(dev_path, data_name, model_type=model_type, layer=layer, control=control,
                                       small_dataset=small_dataset, language=language, attribute=attribute)
-        test_data_handler = data_model(test_path, data_name, layer=layer, control=control,
+        test_data_handler = data_model(test_path, data_name, model_type=model_type, layer=layer, control=control,
                                        small_dataset=small_dataset, language=language, attribute=attribute)
         values_to_ignore = set()
         for data_set in [train_data_handler, dev_data_handler, test_data_handler]:
@@ -71,7 +75,7 @@ if __name__ == "__main__":
             for value, words in histogram.items():
                 if len(words) < min_count:
                     values_to_ignore.add(value)
-        with open(Path('pickles',data_name,language,attribute,'values_to_ignore.pkl'), 'wb+') as f:
+        with open(Path('pickles', data_name, model_type, language, attribute, 'values_to_ignore.pkl'), 'wb+') as f:
             pickle.dump(values_to_ignore,f)
         print('ignoring labels: {}'.format(values_to_ignore))
         print('creating train and test datasets')
