@@ -7,6 +7,57 @@ from itertools import combinations, product
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.colors import TwoSlopeNorm
+from itertools import groupby
+
+def add_line(ax, xpos, ypos, horizontal):
+    if horizontal:
+        line = plt.Line2D([ypos, ypos + .25], [xpos, xpos], color='black', transform=ax.transAxes, linewidth=0.1)
+    else:
+        line = plt.Line2D([xpos + .01, xpos + .01], [ypos-.09, ypos + .16], color='black', transform=ax.transAxes, linewidth=0.1)
+    line.set_clip_on(False)
+    ax.add_line(line)
+
+def label_len(my_index,level):
+    labels = my_index.get_level_values(level)
+    return [(k, sum(1 for i in g)) for k,g in groupby(labels)]
+
+def label_group_bar_table(ax, df, horizontal):
+    if horizontal:
+        xpos = -.15
+    else:
+        lypos = -.15
+    scale = 1./df.index.size
+    for level in range(df.index.nlevels):
+        pos = df.index.size if horizontal else -0.5
+        prev_line = 0.
+        for label, rpos in label_len(df.index,level):
+            if level == 1:
+                pos -= rpos if horizontal else -rpos
+                size = 5 if rpos == 1 else 6 if rpos < 5 else 9
+                if horizontal:
+                    add_line(ax, pos * scale, xpos, horizontal)
+                    lypos = (pos + .5 * rpos)*scale - 0.005
+                    ax.text(xpos + .1, lypos, label, ha='center', transform=ax.transAxes, fontsize=size)
+                else:
+                    add_line(ax, pos * scale, lypos, horizontal)
+                    xpos = (pos + .0025 * rpos) * scale
+                    text_x = prev_line + (pos * scale - prev_line) / 2
+                    prev_line = pos * scale
+                    ax.text(text_x + 0.01, lypos, label, ha='center', va='center', transform=ax.transAxes, fontsize=size, rotation='vertical')
+            else:
+                for _ in range(rpos):
+                    pos -= 1 if horizontal else -1
+                    if horizontal:
+                        lypos = (pos + .5) * scale - 0.005
+                        ax.text(xpos + .1, lypos, label, ha='center', transform=ax.transAxes, fontsize=5)
+                    else:
+                        xpos = (pos + .5) * scale - 0.005
+                        ax.text(xpos, lypos + .1, label, ha='center', va='center', transform=ax.transAxes, fontsize=5, rotation='vertical')
+        # add_line(ax, pos*scale , xpos)
+        if horizontal:
+            xpos -= .1
+        else:
+            lypos -= .01
 
 def obtain_ranking(model_type, lan, att, layer, ranking):
     pkl_path = Path('pickles', 'UM', model_type, lan, att)
@@ -126,29 +177,36 @@ def plot_heatmap(model_type, num_neurons):
                 continue
             indices.append(f'{att}, {lan}')
     # indices.sort(key=lambda x:x[1])
-    matrix = pd.DataFrame(index=indices, columns=indices)
+    # matrix = pd.DataFrame(index=indices, columns=indices)
+    atts = [label[:label.index(',')] for label in indices]
+    lans = [label[label.index(' ')+1:] for label in indices]
+    tuples = list(zip(lans, atts))
+    index = pd.MultiIndex.from_tuples(tuples, names=['first', 'second'])
+    matrix = pd.DataFrame(index=index, columns=index)
     labels = []
     for layer in layers:
         rankings_overlap = {}
-        for r_1, r_2 in combinations(rankings, 2):
-        # for r in rankings:
+        # for r_1, r_2 in combinations(rankings, 2):
+        for r in rankings:
             # if r == 'bayes mi':
             #     continue
             diag = []
             labels = []
             for i_1, i_2 in product(indices, repeat=2):
-                # if i_1 == i_2:
-                #     continue
+                if i_1 == i_2:
+                    continue
                 att_1, lan_1 = i_1.split(', ')
                 att_2, lan_2 = i_2.split(', ')
-                l_1 = top_neurons[(att_1, lan_1, layer, r_1)].values[:x]
-                l_2 = top_neurons[(att_2, lan_2, layer, r_2)].values[:x]
-                # l_1 = top_neurons[(att_1, lan_1, layer, r)].values[:x]
-                # l_2 = top_neurons[(att_2, lan_2, layer, r)].values[:x]
-                matrix[i_1][i_2] = len(np.intersect1d(l_1, l_2, assume_unique=True))
-                if i_1 == i_2:
-                    diag.append(len(np.intersect1d(l_1, l_2, assume_unique=True)))
-                    labels.append(i_1)
+                # l_1 = top_neurons[(att_1, lan_1, layer, r_1)].values[:x]
+                # l_2 = top_neurons[(att_2, lan_2, layer, r_2)].values[:x]
+                l_1 = top_neurons[(att_1, lan_1, layer, r)].values[:x]
+                l_2 = top_neurons[(att_2, lan_2, layer, r)].values[:x]
+                # matrix[i_1][i_2] = len(np.intersect1d(l_1, l_2, assume_unique=True))
+                # matrix[lan_1][att_1][lan_2][att_2] = len(np.intersect1d(l_1, l_2, assume_unique=True))
+                matrix.loc[lan_1,att_1].loc[lan_2,att_2] = len(np.intersect1d(l_1, l_2, assume_unique=True))
+                # if i_1 == i_2:
+                #     diag.append(len(np.intersect1d(l_1, l_2, assume_unique=True)))
+                #     labels.append(i_1)
 
             matrix = matrix.astype(float)
             # wo_lan = [label[:label.index(',')] for label in matrix.columns.values]
@@ -162,33 +220,41 @@ def plot_heatmap(model_type, num_neurons):
             # for x_tick, y_tick, size in zip(h.get_xmajorticklabels(), h.get_ymajorticklabels(), sizes):
             #     x_tick.set_size(size)
             #     y_tick.set_size(size)
-            h.set_xticklabels(h.get_xmajorticklabels(), fontsize=6)
-            h.set_yticklabels(h.get_ymajorticklabels(), fontsize=6)
+            # h.set_xticklabels(h.get_xmajorticklabels(), fontsize=6)
+            # h.set_yticklabels(h.get_ymajorticklabels(), fontsize=6)
+            labels = ['' for item in h.get_yticklabels()]
+            h.set_yticklabels(labels)
+            h.set_ylabel('')
+            labels = ['' for item in h.get_xticklabels()]
+            h.set_xticklabels(labels)
+            h.set_xlabel('')
             h.set_facecolor('grey')
-            title = f'layer {str(layer)} by {r_1}, {r_2}'
-            # title = f'layer {str(layer)} by {r} by att'
+            label_group_bar_table(h, matrix, True)
+            label_group_bar_table(h, matrix, False)
+            # title = f'layer {str(layer)} by {r_1}, {r_2}'
+            title = f'layer {str(layer)} by {r} by att_tmp'
             # plt.title(title)
             plt.tight_layout()
             save_dir = Path('results', 'overlaps', model_type)
             if not save_dir.exists():
                 save_dir.mkdir()
-            # plt.savefig(Path(save_dir, title))
+            plt.savefig(Path(save_dir, title))
             plt.close()
             # plt.show()
-            rankings_overlap[(r_1, r_2)] = diag
-        all_three = []
-        for i in indices:
-            att, lan = i.split(', ')
-            l_1 = top_neurons[(att, lan, layer, rankings[0])].values[:x]
-            l_2 = top_neurons[(att, lan, layer, rankings[1])].values[:x]
-            l_3 = top_neurons[(att, lan, layer, rankings[2])].values[:x]
-            intersection = np.intersect1d(l_1, l_2, assume_unique=True)
-            intersection = np.intersect1d(intersection, l_3, assume_unique=True)
-            all_three.append(len(intersection))
-        above_rand = [overlap for overlap in all_three if overlap > 2]
-        print(f'layer {layer} above rand: {len(above_rand)}' )
-        rankings_overlap['all'] = all_three
-        plot_bar(rankings_overlap, labels, 8, layer, save_dir)
+            # rankings_overlap[(r_1, r_2)] = diag
+        # all_three = []
+        # for i in indices:
+        #     att, lan = i.split(', ')
+        #     l_1 = top_neurons[(att, lan, layer, rankings[0])].values[:x]
+        #     l_2 = top_neurons[(att, lan, layer, rankings[1])].values[:x]
+        #     l_3 = top_neurons[(att, lan, layer, rankings[2])].values[:x]
+        #     intersection = np.intersect1d(l_1, l_2, assume_unique=True)
+        #     intersection = np.intersect1d(intersection, l_3, assume_unique=True)
+        #     all_three.append(len(intersection))
+        # above_rand = [overlap for overlap in all_three if overlap > 2]
+        # print(f'layer {layer} above rand: {len(above_rand)}' )
+        # rankings_overlap['all'] = all_three
+        # plot_bar(rankings_overlap, labels, 8, layer, save_dir)
 
 def plot_bar(data: dict, settings, num_to_show, layer, save_dir):
     random_2 = 13
