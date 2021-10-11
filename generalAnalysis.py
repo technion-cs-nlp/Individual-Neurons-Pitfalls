@@ -7,25 +7,32 @@ import matplotlib.pyplot as plt
 import itertools
 from scipy.stats import wilcoxon
 import seaborn as sns
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import normalize
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+from pyclustering.cluster.xmeans import xmeans
+from pyclustering.cluster import cluster_visualizer
+from pyclustering.cluster.center_initializer import kmeans_plusplus_initializer
 
 order = ['bayes by bayes mi', 'linear by bayes mi', 'bayes by top avg', 'linear by top avg',
          'bayes by top cluster', 'linear by top cluster', 'bayes by random', 'linear by random',
          'bayes by worst mi', 'linear by worst mi', 'bayes by bottom avg', 'linear by bottom avg',
          'bayes by bottom cluster', 'linear by bottom cluster']
 
-def load_res(lan, att, layer, ablation: bool, max_num=None):
+def load_res(model_type, lan, att, layer, ablation: bool, max_num=None):
     if ablation:
-        dump_file = Path('results', 'UM', lan, att, 'layer ' + str(layer), 'ablation by attr', 'results.pkl')
+        dump_file = Path('results', 'UM', model_type, lan, att, 'layer ' + str(layer), 'ablation by attr', 'results.pkl')
     else:
-        dump_file = Path('results', 'UM', lan, att, 'layer ' + str(layer), 'test_acc_results.pkl')
+        dump_file = Path('results', 'UM', model_type, lan, att, 'layer ' + str(layer), 'test_acc_results.pkl')
     if not dump_file.exists():
         raise Exception(f'{lan} {att} {layer} does not exist')
     with open(dump_file, 'rb') as f:
         res = pickle.load(f)
     return res
 
-def create_empty_df(ablation: bool):
-    root_path = Path('results','UM')
+def create_empty_df(model_type, ablation: bool):
+    root_path = Path('results','UM', model_type)
     lans = {p.name for p in root_path.glob('*') if p.is_dir()}
     layers = [2, 7, 12]
     max_nums = [] if ablation else [10, 50, 150]
@@ -37,7 +44,7 @@ def create_empty_df(ablation: bool):
         for att in atts:
             for layer in layers:
                 if ablation:
-                    curr_res = load_res(lan, att, layer, ablation)
+                    curr_res = load_res(model_type, lan, att, layer, ablation)
                     metrics = curr_res.keys()
                     all_mets.update(metrics)
                     for metric in metrics:
@@ -46,7 +53,7 @@ def create_empty_df(ablation: bool):
                         for ranking in rankings:
                             all_abl.update({abl for abl, r in curr_res[metric][ranking]})
                 else:
-                    curr_res = load_res(lan, att, layer, ablation, max_nums[0])
+                    curr_res = load_res(model_type, lan, att, layer, ablation, max_nums[0])
                     rankings = curr_res.keys()
                     all_rankings.update(rankings)
     col_mi = pd.MultiIndex.from_product([lans, all_atts, layers, all_rankings],
@@ -57,8 +64,8 @@ def create_empty_df(ablation: bool):
     df = pd.DataFrame(index=row_mi, columns=col_mi).sort_index().sort_index(axis=1)
     return df
 
-def fill_df(df: pd.DataFrame, ablation: bool):
-    root_path = Path('results', 'UM')
+def fill_df(model_type, df: pd.DataFrame, ablation: bool):
+    root_path = Path('results', 'UM', model_type)
     layers = [2, 7, 12]
     max_nums = [] if ablation else [10, 50, 150]
     lans = {p.name for p in root_path.glob('*') if p.is_dir()}
@@ -68,7 +75,7 @@ def fill_df(df: pd.DataFrame, ablation: bool):
         for att in atts:
             for layer in layers:
                 if ablation:
-                    curr_res = load_res(lan, att, layer, ablation)
+                    curr_res = load_res(model_type, lan, att, layer, ablation)
                     metrics = curr_res.keys()
                     for metric in metrics:
                         rankings = curr_res[metric].keys()
@@ -77,7 +84,7 @@ def fill_df(df: pd.DataFrame, ablation: bool):
                                 df[(lan, att, layer, ranking)][(metric, num_ablated)] = res
                 else:
                     for max_num in max_nums:
-                        curr_res = load_res(lan, att, layer, ablation, max_num)
+                        curr_res = load_res(model_type, lan, att, layer, ablation, max_num)
                         rankings = curr_res.keys()
                         for ranking in rankings:
                             df[(lan, att, layer, ranking)][max_num] = curr_res[ranking][max_num - 1]
@@ -192,11 +199,78 @@ def plot_heatmap(data: pd.DataFrame, title: str, subtitle:str, save_path: Path):
     plt.close()
     # plt.show()
 
+def cluster_results(model_type):
+    all_res = {}
+    root_path = Path('results', 'UM', model_type)
+    for lan in [f.name for f in root_path.glob('*') if f.is_dir()]:
+        lan_path = Path(root_path, lan)
+        for att in [f.name for f in lan_path.glob('*') if f.is_dir()]:
+            att_path = Path(lan_path, att)
+            for layer in [f.name for f in att_path.glob('*') if f.is_dir() and f.name.startswith('layer')]:
+                layer_path = Path(att_path, layer)
+                with open(Path(layer_path, 'test_acc_results.pkl'),'rb') as f:
+                    curr_res = pickle.load(f)
+                settings = list(curr_res.keys())
+                settings.sort()
+                all_res[f'{lan} {att} {layer[len("layer "):]}'] = [curr_res[s][:150] for s in settings if 'bottom' not in s and 'worst' not in s]
+    data_matrix = np.array(list(all_res.values())).reshape([len(all_res), len(all_res['ara Aspect 2']) * len(all_res['ara Aspect 2'][0])])
+    data_matrix = normalize(data_matrix)
+    # data_matrix = np.array(list(all_res.values()))
+    cluster_centers = data_matrix[[list(all_res.keys()).index('bul Definiteness 7'),
+                                  list(all_res.keys()).index('hin Part of Speech 12'),
+                                  list(all_res.keys()).index('rus Animacy 2')]]
+    labels = KMeans(n_clusters=3, init=cluster_centers).fit_predict(data_matrix)
+    transformed_data = PCA(n_components=50).fit_transform(data_matrix)
+    transformed_data = TSNE(n_components=2, init='pca').fit_transform(transformed_data)
+    bins = np.bincount(labels)
+    label_names = ['Standard', 'G>L', 'L>G']
+    plt.figure(figsize=[6.4, 4.0])
+    for i in range(3):
+        plt.scatter(transformed_data[labels == i, 0], transformed_data[labels == i, 1], label=label_names[i])
+    names = ['' for n in list(all_res.keys())]
+    for i, n in enumerate(list(all_res.keys())):
+        for j, w in enumerate(n.split()):
+            if j == 0 or w.startswith('1'):
+                chars = w[:2]
+            elif w == 'Polarity':
+                chars = 'Pl'
+            elif w == 'Possesion':
+                chars = 'Ps'
+            elif w == 'Person':
+                chars = 'Pe'
+            elif w == 'Animacy':
+                chars = 'An'
+            elif w == 'Aspect':
+                chars = 'As'
+            elif w == 'and' or w == 'Noun' or w == 'Class':
+                chars = ''
+            else:
+                chars = w[0]
+            names[i] += chars
+        plt.annotate(names[i], transformed_data[i], size=6)
+    plt.legend(fontsize=14)
+    plt.yticks([], [])
+    plt.xticks([], [])
+    plt.tight_layout()
+    plt.savefig(Path('results', 'UM', model_type, 'clusters'))
+    plt.close()
+    # initial_centers = kmeans_plusplus_initializer(transformed_data, 2).initialize()
+    # xmeans_instance = xmeans(transformed_data, initial_centers)
+    # xmeans_instance.process()
+    # clusters = xmeans_instance.get_clusters()
+    # centers = xmeans_instance.get_centers()
+    # visualizer = cluster_visualizer()
+    # visualizer.append_clusters(clusters, transformed_data)
+    # visualizer.append_cluster(centers, None, marker='*', markersize=10)
+    # visualizer.show()
+
 if __name__ == '__main__':
     abl = False
-    data = create_empty_df(abl)
-    fill_df(data, abl)
-    if abl:
-        ablation_analysis(data)
-    else:
-        probing_analysis(data)
+    model_type = 'xlm'
+    # data = create_empty_df(model_type, abl)
+    # fill_df(model_type, data, abl)
+    # if abl:
+    #     ablation_analysis(data)
+    # else:
+    #     probing_analysis(data)
+    cluster_results(model_type)

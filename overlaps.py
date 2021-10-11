@@ -33,7 +33,7 @@ def label_group_bar_table(ax, df, horizontal):
         for label, rpos in label_len(df.index,level):
             if level == 1:
                 pos -= rpos if horizontal else -rpos
-                size = 5 if rpos == 1 else 6 if rpos < 5 else 9
+                size = 5 if rpos == 1 else 7 if rpos == 2 else 9 if rpos < 5 else 11
                 if horizontal:
                     add_line(ax, pos * scale, xpos, horizontal)
                     lypos = (pos + .5 * rpos)*scale - 0.005
@@ -184,12 +184,12 @@ def plot_heatmap(model_type, num_neurons):
     index = pd.MultiIndex.from_tuples(tuples, names=['first', 'second'])
     matrix = pd.DataFrame(index=index, columns=index)
     labels = []
-    for layer in layers:
+    # for layer in layers:
+    for layer in [7]:
         rankings_overlap = {}
         # for r_1, r_2 in combinations(rankings, 2):
-        for r in rankings:
-            # if r == 'bayes mi':
-            #     continue
+        # for r in rankings:
+        for r in ['top cluster']:
             diag = []
             labels = []
             for i_1, i_2 in product(indices, repeat=2):
@@ -209,19 +209,9 @@ def plot_heatmap(model_type, num_neurons):
                 #     labels.append(i_1)
 
             matrix = matrix.astype(float)
-            # wo_lan = [label[:label.index(',')] for label in matrix.columns.values]
-            # matrix.columns.values = wo_lan
-            # matrix.index.values = wo_lan
             cmap = sns.diverging_palette(0, 255, as_cmap=True)
             divnorm = TwoSlopeNorm(vcenter=13, vmin=0, vmax=75)
             h = sns.heatmap(matrix, vmin=0, vmax=75, xticklabels=True, yticklabels=True, cmap=cmap, norm=divnorm)
-            # sizes = [6, 0, 7, 0, 0, 0, 8, 0, 0, 0, 6, 0, 0, 0, 9, 0, 0, 6, 0, 0, 0, 0, 10, 0, 0, 0, 0,
-            #          0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 7, 0, 6, 6, 0, 0, 0, 9, 0, 0, 0, 0, 0, 7, 0]
-            # for x_tick, y_tick, size in zip(h.get_xmajorticklabels(), h.get_ymajorticklabels(), sizes):
-            #     x_tick.set_size(size)
-            #     y_tick.set_size(size)
-            # h.set_xticklabels(h.get_xmajorticklabels(), fontsize=6)
-            # h.set_yticklabels(h.get_ymajorticklabels(), fontsize=6)
             labels = ['' for item in h.get_yticklabels()]
             h.set_yticklabels(labels)
             h.set_ylabel('')
@@ -231,9 +221,7 @@ def plot_heatmap(model_type, num_neurons):
             h.set_facecolor('grey')
             label_group_bar_table(h, matrix, True)
             label_group_bar_table(h, matrix, False)
-            # title = f'layer {str(layer)} by {r_1}, {r_2}'
             title = f'layer {str(layer)} by {r} by att_tmp'
-            # plt.title(title)
             plt.tight_layout()
             save_dir = Path('results', 'overlaps', model_type)
             if not save_dir.exists():
@@ -254,17 +242,18 @@ def plot_heatmap(model_type, num_neurons):
         # above_rand = [overlap for overlap in all_three if overlap > 2]
         # print(f'layer {layer} above rand: {len(above_rand)}' )
         # rankings_overlap['all'] = all_three
+        # save_dir = Path('results', 'overlaps', model_type)
         # plot_bar(rankings_overlap, labels, 8, layer, save_dir)
 
 def plot_bar(data: dict, settings, num_to_show, layer, save_dir):
     random_2 = 13
     random_3 = 1.7
     order = np.random.permutation(len(settings))
-    order = [settings.index('POS, fra'), settings.index('Number, fin'), settings.index('Gender, hin'), settings.index('Voice, rus'),
+    order = [settings.index('Number, fin'), settings.index('POS, fra'), settings.index('Gender, hin'), settings.index('Voice, rus'),
              settings.index('Number, rus'), settings.index('POS, ara'), settings.index('POS, bul'), settings.index('Aspect, rus')]
     fig, ax = plt.subplots()
     names = list(data.keys())
-    names = ['Gaussian, Linear', 'Gaussian, Cluster', 'Linear, Cluster', 'All']
+    names = ['Gaussian, Linear', 'Gaussian, Probeless', 'Linear, Probeless', 'All']
     data_table = [vals for vals in data.values()]
     data_table = [[vals[i] for i in order] for vals in data_table]
     data_table = [vals[:num_to_show] for vals in data_table]
@@ -278,12 +267,12 @@ def plot_bar(data: dict, settings, num_to_show, layer, save_dir):
     ax.bar(X + width * 3 / 2, data_table[3], width=width, label=names[3])
     plt.axhline(random_2, color='gray', linestyle='dashed')
     plt.axhline(random_3, color='black', linestyle='dashed')
-    plt.yticks(list(plt.yticks()[0]) + [13, 1.7], list(plt.yticks()[0]) + ['rand-2', 'rand-3'])
+    plt.yticks(list(plt.yticks()[0]) + [13, 1.7], list(plt.yticks()[0]) + ['rand-2', 'rand-3'], fontsize=14)
     title = f'rankings overlap layer {layer}'
     # ax.set_title(title)
-    ax.set_ylabel('overlap')
+    ax.set_ylabel('overlap', fontsize=14)
     ax.set_xticks(X)
-    ax.set_xticklabels(labels, fontsize=7)
+    ax.set_xticklabels(labels, fontsize=8)
     ax.legend()
     fig.tight_layout()
     # plt.show()
@@ -295,4 +284,4 @@ if __name__ == '__main__':
     x = 100
     # get_all_rankings('xlm')
     # analyze_overlaps(x)
-    plot_heatmap('bert', x)
+    plot_heatmap('xlm', x)

@@ -1,9 +1,11 @@
 import sentencepiece
 import torch
 from torch import nn
-from transformers import BertTokenizer, BertModel, BertConfig, BertForMaskedLM, BertTokenizerFast, XLMRobertaTokenizerFast, XLMRobertaForMaskedLM
+from transformers import BertTokenizer, BertModel, BertConfig, BertForMaskedLM, BertTokenizerFast, XLMRobertaTokenizer,\
+    XLMRobertaTokenizerFast, XLMRobertaForMaskedLM
 from transformers.models.bert.modeling_bert import BertOnlyMLMHead
 import consts
+
 
 def subword_tokenize(tokenizer: BertTokenizer, tokens):
     """
@@ -19,6 +21,7 @@ def subword_tokenize(tokenizer: BertTokenizer, tokens):
 
     return indexed_subtokens
 
+#Not used
 class BertWordEmbeds(nn.Module):
     def __init__(self,layer=12):
         super(BertWordEmbeds, self).__init__()
@@ -57,7 +60,7 @@ class BertLM(nn.Module):
         super(BertLM, self).__init__()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased') if model_type == 'bert'\
-            else XLMRobertaTokenizerFast.from_pretrained('xlm-roberta-base')
+            else XLMRobertaTokenizer.from_pretrained('xlm-roberta-base')
         self.model = BertForMaskedLM.from_pretrained('bert-base-multilingual-cased') if model_type == 'bert'\
             else XLMRobertaForMaskedLM.from_pretrained('xlm-roberta-base')
         self.layer = layer
@@ -169,10 +172,12 @@ class BertFromMiddle(nn.Module):
             else XLMRobertaTokenizerFast.from_pretrained('xlm-roberta-base')
         self.layer = layer
         self.bert = BertForMaskedLM.from_pretrained('bert-base-multilingual-cased').to(self.device) if model_type == 'bert'\
-            else XLMRobertaForMaskedLM.from_pretrained('xlm-roberta-base')
+            else XLMRobertaForMaskedLM.from_pretrained('xlm-roberta-base').to(self.device)
         self.layers = self.bert.bert.encoder.layer[self.layer:] if model_type == 'bert' else self.bert.roberta.encoder.layer[self.layer:]
         self.classifier = self.bert.cls if model_type == 'bert' else self.bert.lm_head
-        self.prefix_char = '##' if model_type == 'bert' else '_'
+        self.prefix_char = '##' if model_type == 'bert' else '\u2581'
+        self.pad_token = 0 if model_type == 'bert' else 1
+        self.special_tokens = [0, 101, 102] if model_type == 'bert' else [0, 1, 2]
         self.model_type = model_type
 
     def get_lemma_ranks(self, words_to_tokens, tokens_to_words, pred_scores, labels, lemmas, relevant_indices):
@@ -239,15 +244,16 @@ class BertFromMiddle(nn.Module):
                 prev_word_last = batch_labels.encodings[i].offsets[token_idx - 1][1]
                 curr_token = batch_labels.encodings[i].tokens[token_idx]
                 if curr_word_first == prev_word_last != 0:
-                    if self.model_type == 'bert' and not curr_token.startswith(self.prefix_char):
-                        splits += 1
-                    elif self.model_type == 'xlm' and curr_token.startswith(self.prefix_char):
+                    # if self.model_type == 'bert' and not curr_token.startswith(self.prefix_char):
+                    #     splits += 1
+                    # elif self.model_type == 'xlm' and curr_token.startswith(self.prefix_char):
+                    #     splits += 1
+                    if bool(self.model_type == 'bert') ^ bool(curr_token.startswith(self.prefix_char)):
                         splits += 1
                 if len(words_to_tokens[i]) == word - splits:
                     words_to_tokens[i].append([token_idx])
                 else:
                     words_to_tokens[i][word - splits].append(token_idx)
-
         return words_to_tokens
 
     def map_tokens_to_words(self, words_to_tokens):
@@ -268,9 +274,8 @@ class BertFromMiddle(nn.Module):
             word_idx = -1
             output_word_idx = -1
             for token_idx, token in enumerate(pred_sentence_tokens):
-                if token == "We":
-                    print('here')
-                if not token.startswith('##'):
+                # if self.model_type == 'bert' and not token.startswith('##'):
+                if not bool(self.model_type == 'bert') ^ bool(token.startswith(self.prefix_char)):
                     output_word_idx += 1
                 curr_token_input_word = input_tokens_to_words[sent_idx][token_idx]
                 if len(input_to_output[sent_idx]) == curr_token_input_word:
@@ -286,7 +291,7 @@ class BertFromMiddle(nn.Module):
             words_to_tokens = self.map_words_to_tokens(sentences, batch_labels)
             tokens_to_words = self.map_tokens_to_words(words_to_tokens)
             labels = batch_labels['input_ids']
-            attention_mask = torch.where(labels == 0, torch.zeros_like(labels), torch.ones_like(labels))
+            attention_mask = torch.where(labels == self.pad_token, torch.zeros_like(labels), torch.ones_like(labels))
             extended_attention_mask = attention_mask[:, None, None, :]
             extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
             padded_features = torch.zeros(list(labels.shape) + [consts.BERT_OUTPUT_DIM]).to(self.device)
@@ -302,9 +307,10 @@ class BertFromMiddle(nn.Module):
             pred_scores = torch.stack(transpose)
             preds = pred_scores.argmax(dim=1)
             # pred_scores = pred_scores[0].T.unsqueeze(0)
-            labels = torch.where(labels == 101, torch.ones_like(labels) * (-100), labels)
-            labels = torch.where(labels == 102, torch.ones_like(labels) * (-100), labels)
-            labels = torch.where(labels == 0, torch.ones_like(labels) * (-100), labels)
+            for i in self.special_tokens:
+                labels = torch.where(labels == i, torch.ones_like(labels) * (-100), labels)
+                # labels = torch.where(labels == 102, torch.ones_like(labels) * (-100), labels)
+                # labels = torch.where(labels == 0, torch.ones_like(labels) * (-100), labels)
             loss_func = nn.CrossEntropyLoss()
             res = dict.fromkeys(['loss', 'correct_all', 'num_all', 'correct_relevant', 'num_relevant',
                                  'correct_irrelevant', 'num_irrelevant','lemma_preds'],None)

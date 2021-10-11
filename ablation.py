@@ -38,10 +38,10 @@ def collate_fn(batch):
     features = [item[1] for item in batch]
     return [sentences, features]
 
-def ablate(data_name, model_type, language, layer, neurons_list, attribute = '', one_by_one=False, ranking='', step=0,
+def ablate(data_name, set_type, model_type, language, layer, neurons_list, attribute = '', one_by_one=False, ranking='', step=0,
            alpha=1, intervention=False, scaling=''):
     alpha_str = str(np.ceil(alpha.max())) if scaling else alpha
-    set_name = 'test_'
+    set_name = set_type + '_'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = BertFromMiddle(model_type, layer)
     skipped = []
@@ -181,14 +181,24 @@ def ablate(data_name, model_type, language, layer, neurons_list, attribute = '',
         outputs_dir.mkdir(parents=True, exist_ok=True)
     intervention_str = '_intervention' if intervention else ''
     scaling_str = scaling
-    with open(Path(outputs_dir,f'ablation_token_outputs_by_{ranking}{intervention_str}_{step}_{alpha_str}_{scaling_str}.pkl'),'wb+') as f:
+    with open(Path(outputs_dir,f'ablation_token_outputs_by_{ranking}{intervention_str}_{step}_{alpha_str}_{scaling_str}+{set_type}.pkl'),'wb+') as f:
         pickle.dump(decoded_tokens, f)
-    with open(Path(outputs_dir,f'ablation_lemmas_ranks_by_{ranking}{intervention_str}_{step}_{alpha_str}_{scaling_str}.pkl'),'wb+') as f:
+    with open(Path(outputs_dir,f'ablation_lemmas_ranks_by_{ranking}{intervention_str}_{step}_{alpha_str}_{scaling_str}+{set_type}.pkl'),'wb+') as f:
         pickle.dump(lemmas_ranks,f)
 
 if __name__ == "__main__":
     torch.manual_seed(consts.SEED)
-    datas_path = {'eng':'data/UM/eng/en_ewt-um-test.conllu',
+    datas_path_dev = {'eng': 'data/UM/eng/en_ewt-um-dev.conllu',
+                       'ara': 'data/UM/ara/ar_padt-um-dev.conllu',
+                       'hin': 'data/UM/hin/hi_hdtb-um-dev.conllu',
+                       'rus': 'data/UM/rus/ru_gsd-um-dev.conllu',
+                       'fin': 'data/UM/fin/fi_tdt-um-dev.conllu',
+                       'bul': 'data/UM/bul/bg_btb-um-dev.conllu',
+                       'tur': 'data/UM/tur/tr_imst-um-dev.conllu',
+                       'spa': 'data/UM/spa/es_gsd-um-dev.conllu',
+                       'fra': 'data/UM/fra/fr_gsd-um-dev.conllu'}
+
+    datas_path_test = {'eng':'data/UM/eng/en_ewt-um-test.conllu',
                   'ara':'data/UM/ara/ar_padt-um-test.conllu',
                   'hin':'data/UM/hin/hi_hdtb-um-test.conllu',
                   'rus':'data/UM/rus/ru_gsd-um-test.conllu',
@@ -197,8 +207,10 @@ if __name__ == "__main__":
                   'tur': 'data/UM/tur/tr_imst-um-test.conllu',
                   'spa': 'data/UM/spa/es_gsd-um-test.conllu',
                   'fra': 'data/UM/fra/fr_gsd-um-test.conllu'}
+
     data_name = 'UM'
     parser = ArgumentParser()
+    parser.add_argument('-set', type=str)
     parser.add_argument('-model', type=str)
     parser.add_argument('-language', type=str)
     parser.add_argument('-attribute', type=str)
@@ -209,6 +221,7 @@ if __name__ == "__main__":
     parser.add_argument('--intervention', default=False, action='store_true')
     parser.add_argument('-scaling', type=str)
     args = parser.parse_args()
+    set_type = args.set
     model_type = args.model
     language = args.language
     attribute = args.attribute
@@ -225,11 +238,12 @@ if __name__ == "__main__":
     intervention_str = '_intervention' if intervention else ''
     alpha_str = str(alpha)
     scaling_str = scaling
+    datas_path = datas_path_dev if set_type == 'dev' else datas_path_test
     data_path = datas_path[language]
-    get_bert_features(data_path, data_name, model_type, language, layer)
     res_file_dir = Path('results', data_name, model_type, language, attribute, 'layer ' + str(layer))
     if not res_file_dir.exists():
         sys.exit('WRONG SETTING')
+    get_bert_features(data_path, data_name, model_type, language, layer)
     linear_model_path = Path('pickles', data_name, model_type, language, attribute,
                              'best_model_whole_vector_layer_' + str(layer) + control_str + small_dataset_str)
     bayes_res_path = Path(res_file_dir, 'bayes by bayes mi'+control_str)
@@ -240,12 +254,12 @@ if __name__ == "__main__":
         label_to_idx = pickle.load(f)
     num_labels = len(label_to_idx)
     ranking_params = {'top avg': (utils.sort_neurons_by_avg_weights, linear_model_path, num_labels),
-                'bottom avg': (utils.sort_neurons_by_avg_weights, linear_model_path, num_labels),
-                'bayes mi': (utils.sort_neurons_by_bayes_mi, bayes_res_path),
-                'worst mi': (utils.sort_neurons_by_bayes_mi, worst_bayes_res_path),
-                'random': (utils.sort_neurons_by_random, None),
-                  'top cluster': (utils.sort_neurons_by_clusters, cluster_ranking_path),
-                  'bottom cluster': (utils.sort_neurons_by_clusters, cluster_ranking_path)}
+                      'bottom avg': (utils.sort_neurons_by_avg_weights, linear_model_path, num_labels),
+                      'bayes mi': (utils.sort_neurons_by_bayes_mi, bayes_res_path),
+                      'worst mi': (utils.sort_neurons_by_bayes_mi, worst_bayes_res_path),
+                      'random': (utils.sort_neurons_by_random, None),
+                      'top cluster': (utils.sort_neurons_by_clusters, cluster_ranking_path),
+                      'bottom cluster': (utils.sort_neurons_by_clusters, cluster_ranking_path)}
     try:
         neurons_list = get_ranking(ranking_params[ranking])
         if ranking == 'random':
@@ -265,7 +279,7 @@ if __name__ == "__main__":
         elif scaling == 'lnspace':
             alpha = utils.lnscale(neurons_list, alpha)
     sparsed = '' if step == 1 else 'sparsed '
-    res_file_name = f'by {ranking}{intervention_str}_{step}_{alpha_str}_{scaling_str}'
+    res_file_name = f'by {ranking}{intervention_str}_{step}_{alpha_str}_{scaling_str}_{set_type}'
     # #TODO for debug
     # res_file_name += '_tmp'
     # ##############################
@@ -284,7 +298,7 @@ if __name__ == "__main__":
         print('step: ', step)
         print('alpha: ', alpha)
         print('intervention:', intervention)
-        ablate(data_name, model_type, language, layer, neurons_list, attribute=attribute, ranking=ranking,
+        ablate(data_name, set_type, model_type, language, layer, neurons_list, attribute=attribute, ranking=ranking,
                step=step, alpha=alpha, intervention=intervention, scaling=scaling)
 
 

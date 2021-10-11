@@ -11,7 +11,9 @@ from tqdm import tqdm
 # from transformers import BertTokenizer
 
 class morphCompare():
-    def __init__(self, language, attribute, layer, ranking, intervention=False, step=-1, alpha=1, scaling=False):
+    def __init__(self, dump_path, set_type, model_type, language, attribute, layer, ranking, intervention=False, step=-1, alpha=1, scaling=False):
+        self.set_type = set_type
+        self.model_type = model_type
         self.language = language
         self.attribute = attribute
         self.layer = layer
@@ -19,6 +21,7 @@ class morphCompare():
         self.intervention_str = '_intervention' if intervention else ''
         self.step = step
         self.alpha = alpha
+        self.dump_path = dump_path
         alpha_str = str(float(alpha)) if scaling else str(alpha)
         self.params_str = f'_{step}_{alpha_str}' if step != -1 else ''
         self.scaling_str = '_' + scaling if scaling else ''
@@ -40,9 +43,9 @@ class morphCompare():
             sentence_by_tokens = {}
             toks_to_words = {}
             token_idx = 0
-            for word_idx, word in enumerate(sentence.split()):
+            for word_idx, word in enumerate(sentence.split(' ')):
                 word_tokens_len = len(self.parser.tokenizer(word))
-                word_tokens_idxs= list(range(token_idx, token_idx + word_tokens_len))
+                word_tokens_idxs = list(range(token_idx, token_idx + word_tokens_len))
                 sentence_by_tokens[word_idx]=word_tokens_idxs
                 for token in word_tokens_idxs:
                     toks_to_words[token] = word_idx
@@ -73,27 +76,22 @@ class morphCompare():
         return stats
 
     def parse_true(self):
-        true_sentences_path = Path('pickles', 'UM', self.language, 'new_test_sentences.pkl')
-        # true_sentences_path = Path('pickles', 'UM', self.language, 'test_sentences.pkl')
+        true_sentences_path = Path('pickles', 'UM', self.model_type, self.language, f'new_{self.set_type}_sentences.pkl')
         with open(true_sentences_path, 'rb') as f:
             true_sentences = pickle.load(f)
         true_sentences = list(true_sentences.items())
         true_sentences.sort(key=lambda x: x[0])
         true_sentences = [t[1] for t in true_sentences]
-        # bert_tokenizer = BertTokenizer.from_pretrained("bert-base-multilingual-cased")
-
-        # true_sentences = [t[1][:-1] for t in true_sentences] # [-1] is for removing \n
         parsed = self.parse(true_sentences)
         tokenization, rev_tokenization = self._words_to_tokens(true_sentences)
-        #TODO remove after debug
-        # self.true_sentences = true_sentences
         return parsed, tokenization, rev_tokenization
 
     def parse_preds(self):
-        pred_sentences_path = Path('pickles', 'UM', self.language, self.attribute, str(self.layer),
-                                   'ablation_token_outputs_by_' + self.ranking + self.intervention_str +
-                                   self.params_str + self.scaling_str + '.pkl')
-        with open(pred_sentences_path, 'rb') as f:
+        # pred_sentences_path = Path('pickles', 'UM', self.model_type, self.language, self.attribute, str(self.layer),
+        #                            'ablation_token_outputs_by_' + self.ranking + self.intervention_str +
+        #                            self.params_str + self.scaling_str + '.pkl')
+
+        with open(self.dump_path, 'rb') as f:
             pred_sentences = pickle.load(f)
         pred_stats, pred_tokenization, pred_rev_tokenization = {}, {}, {}
         for num_ablated, preds in tqdm(pred_sentences.items()):
@@ -165,6 +163,8 @@ class morphCompare():
 
 if __name__ == '__main__':
     argparser = ArgumentParser()
+    argparser.add_argument('-set', type=str)
+    argparser.add_argument('-model', type=str)
     argparser.add_argument('-language', type=str)
     argparser.add_argument('-attribute', type=str)
     argparser.add_argument('-layer', type=int)
@@ -174,6 +174,8 @@ if __name__ == '__main__':
     argparser.add_argument('--intervention', default=False, action='store_true')
     argparser.add_argument('-scaling', type=str)
     args = argparser.parse_args()
+    set_type = args.set
+    model_type = args.model
     language = args.language
     attribute = args.attribute
     layer = args.layer
@@ -186,22 +188,38 @@ if __name__ == '__main__':
     scaling_str = '_' + scaling if scaling else ''
     alpha_str = str(float(alpha)) if scaling else str(alpha)
     params_str = f'_{step}_{alpha_str}' if step != -1 else ''
-    dump_path = Path('pickles', 'UM', language, attribute, str(layer), 'ablation_token_outputs_by_'
-                     + ranking + intervention_str + params_str + scaling_str + '.pkl')
+    set_str = f'+{set_type}'  # + because im stupid
+    dump_path = Path('pickles', 'UM', model_type, language, attribute, str(layer), 'ablation_token_outputs_by_'
+                     + ranking + intervention_str + params_str + scaling_str + set_str + '.pkl')
     if not dump_path.exists():
-        sys.exit('WRONG SETTING')
-    res_dir = Path('results','UM', language, attribute, 'layer '+str(layer), 'spacy')
+        # all of this is because im stupid
+        if set_type == 'test':
+            dump_path = Path('pickles', 'UM', model_type, language, attribute, str(layer), 'ablation_token_outputs_by_'
+                             + ranking + intervention_str + params_str + scaling_str + '+None' + '.pkl')
+            if not dump_path.exists():
+                dump_path = Path('pickles', 'UM', model_type, language, attribute, str(layer),
+                                 'ablation_token_outputs_by_'
+                                 + ranking + intervention_str + params_str + scaling_str + '.pkl')
+                if not dump_path.exists():
+                    sys.exit('WRONG SETTING')
+        else:
+            sys.exit('WRONG SETTING')
+    res_dir = Path('results','UM', model_type, language, attribute, 'layer '+str(layer), 'spacy', set_type)
     if not res_dir.exists():
         res_dir.mkdir()
+    set_str = f'_{set_type}'
     res_file_name = 'by ' + ranking + intervention_str + params_str + scaling_str
+    # res_file_name += '_tmp'
     with open(Path(res_dir, res_file_name), 'w+') as f: ###############TODO
         sys.stdout = f
+        print('set: ', set_type)
+        print('model: ', language)
         print('language: ', language)
         print('attribute: ', attribute)
         print('layer: ', layer)
         print('ranking: ', ranking)
         print('step: ', step)
         print('alpha: ', alpha)
-        mc = morphCompare(language, attribute, layer, ranking, intervention=intervention, step=step,
-                          alpha=alpha, scaling=scaling)
+        mc = morphCompare(dump_path, set_type, model_type, language, attribute, layer, ranking,
+                          intervention=intervention, step=step, alpha=alpha, scaling=scaling)
         mc.comp_all()
