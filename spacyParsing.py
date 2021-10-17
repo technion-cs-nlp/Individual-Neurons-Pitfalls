@@ -76,7 +76,7 @@ class morphCompare():
         return stats
 
     def parse_true(self):
-        true_sentences_path = Path('pickles', 'UM', self.model_type, self.language, f'new_{self.set_type}_sentences.pkl')
+        true_sentences_path = Path('pickles', 'UM', self.model_type, self.language, f'{self.set_type}_sentences.pkl')
         with open(true_sentences_path, 'rb') as f:
             true_sentences = pickle.load(f)
         true_sentences = list(true_sentences.items())

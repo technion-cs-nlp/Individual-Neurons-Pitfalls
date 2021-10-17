@@ -50,7 +50,7 @@ def ablate(data_name, set_type, model_type, language, layer, neurons_list, attri
         features_path = Path(dump_path, set_name + 'features_layer_'+str(layer))
         with open(features_path, 'rb') as f:
             set_features = pickle.load(f)
-        sent_path = Path(dump_path,'new_'+ set_name+'sentences.pkl')
+        sent_path = Path(dump_path, set_name+'sentences.pkl')
         # sent_path = Path(dump_path,set_name+'sentences.pkl')
         with open(sent_path, 'rb') as f:
             set_sentences = pickle.load(f)
@@ -188,25 +188,6 @@ def ablate(data_name, set_type, model_type, language, layer, neurons_list, attri
 
 if __name__ == "__main__":
     torch.manual_seed(consts.SEED)
-    datas_path_dev = {'eng': 'data/UM/eng/en_ewt-um-dev.conllu',
-                       'ara': 'data/UM/ara/ar_padt-um-dev.conllu',
-                       'hin': 'data/UM/hin/hi_hdtb-um-dev.conllu',
-                       'rus': 'data/UM/rus/ru_gsd-um-dev.conllu',
-                       'fin': 'data/UM/fin/fi_tdt-um-dev.conllu',
-                       'bul': 'data/UM/bul/bg_btb-um-dev.conllu',
-                       'tur': 'data/UM/tur/tr_imst-um-dev.conllu',
-                       'spa': 'data/UM/spa/es_gsd-um-dev.conllu',
-                       'fra': 'data/UM/fra/fr_gsd-um-dev.conllu'}
-
-    datas_path_test = {'eng':'data/UM/eng/en_ewt-um-test.conllu',
-                  'ara':'data/UM/ara/ar_padt-um-test.conllu',
-                  'hin':'data/UM/hin/hi_hdtb-um-test.conllu',
-                  'rus':'data/UM/rus/ru_gsd-um-test.conllu',
-                  'fin':'data/UM/fin/fi_tdt-um-test.conllu',
-                  'bul': 'data/UM/bul/bg_btb-um-test.conllu',
-                  'tur': 'data/UM/tur/tr_imst-um-test.conllu',
-                  'spa': 'data/UM/spa/es_gsd-um-test.conllu',
-                  'fra': 'data/UM/fra/fr_gsd-um-test.conllu'}
 
     data_name = 'UM'
     parser = ArgumentParser()
@@ -238,7 +219,7 @@ if __name__ == "__main__":
     intervention_str = '_intervention' if intervention else ''
     alpha_str = str(alpha)
     scaling_str = scaling
-    datas_path = datas_path_dev if set_type == 'dev' else datas_path_test
+    datas_path = consts.dev_paths if set_type == 'dev' else consts.test_paths
     data_path = datas_path[language]
     res_file_dir = Path('results', data_name, model_type, language, attribute, 'layer ' + str(layer))
     if not res_file_dir.exists():

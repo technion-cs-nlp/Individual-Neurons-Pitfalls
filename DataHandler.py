@@ -63,7 +63,7 @@ class DataHandler():
             parsed_data_path = Path('pickles', 'UM', self.model_type, self.language, self.set_name + 'parsed.pkl')
             with open(parsed_data_path, 'rb') as f:
                 self.parsed_data = pickle.load(f)
-            sent_path = Path('pickles','UM', self.model_type, self.language, 'new_' + self.set_name + 'sentences.pkl')
+            sent_path = Path('pickles','UM', self.model_type, self.language, self.set_name + 'sentences.pkl')
             with open(sent_path,'rb') as f:
                 self.clean_sentences = pickle.load(f)
 

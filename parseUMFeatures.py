@@ -11,11 +11,17 @@ from os import path
 import torch
 from torch_scatter import scatter_mean
 from pathlib import Path
+from consts import train_paths, dev_paths, test_paths
 
+"""
+Most of this code was written by Lucas Torroba Hennigen https://github.com/rycolab/intrinsic-probing 
+"""
 
 """
 This function preprocesses UniMorph annotations as described in App. C on the paper.
 """
+
+
 def parse_unimorph_features(features: List[str]) -> Dict[str, str]:
     final_attrs: Dict[str, str] = {}
     for x in features:
@@ -59,11 +65,13 @@ def parse_unimorph_features(features: List[str]) -> Dict[str, str]:
             final_attrs[_UNIMORPH_VALUES_ATTRIBUTE[x]] = x
     return final_attrs
 
+
 def unimorph_feature_parser(line: List[str], i: int) -> Dict[str, str]:
     if line[i] == "_":
         return {}
 
     return parse_unimorph_features(line[i].split(";"))
+
 
 def merge_attributes(tokens: List[str], value_to_attr_dict: Dict[str, str]) -> Dict[str, str]:
     """
@@ -86,6 +94,7 @@ def merge_attributes(tokens: List[str], value_to_attr_dict: Dict[str, str]) -> D
 
     return final_attributes
 
+
 def subword_tokenize(tokenizer: BertTokenizer, tokens: List[str]) -> List[Tuple[int, str]]:
     """
     Returns: List of subword tokens, List of indices mapping each subword token to one real token.
@@ -99,35 +108,6 @@ def subword_tokenize(tokenizer: BertTokenizer, tokens: List[str]) -> List[Tuple[
 
     return indexed_subtokens
 
-train_paths = {'eng': 'data/UM/eng/en_ewt-um-train.conllu',
-               'ara': 'data/UM/ara/ar_padt-um-train.conllu',
-               'hin': 'data/UM/hin/hi_hdtb-um-train.conllu',
-               'rus': 'data/UM/rus/ru_gsd-um-train.conllu',
-               'fin': 'data/UM/fin/fi_tdt-um-train.conllu',
-               'bul': 'data/UM/bul/bg_btb-um-train.conllu',
-               'tur': 'data/UM/tur/tr_imst-um-train.conllu',
-               'spa': 'data/UM/spa/es_gsd-um-train.conllu',
-               'fra': 'data/UM/fra/fr_gsd-um-train.conllu'}
-
-dev_paths = {'eng': 'data/UM/eng/en_ewt-um-dev.conllu',
-             'ara': 'data/UM/ara/ar_padt-um-dev.conllu',
-             'hin': 'data/UM/hin/hi_hdtb-um-dev.conllu',
-             'rus': 'data/UM/rus/ru_gsd-um-dev.conllu',
-             'fin': 'data/UM/fin/fi_tdt-um-dev.conllu',
-             'bul': 'data/UM/bul/bg_btb-um-dev.conllu',
-             'tur': 'data/UM/tur/tr_imst-um-dev.conllu',
-             'spa': 'data/UM/spa/es_gsd-um-dev.conllu',
-             'fra': 'data/UM/fra/fr_gsd-um-dev.conllu'}
-
-test_paths = {'eng': 'data/UM/eng/en_ewt-um-test.conllu',
-              'ara': 'data/UM/ara/ar_padt-um-test.conllu',
-              'hin': 'data/UM/hin/hi_hdtb-um-test.conllu',
-              'rus': 'data/UM/rus/ru_gsd-um-test.conllu',
-              'fin': 'data/UM/fin/fi_tdt-um-test.conllu',
-              'bul': 'data/UM/bul/bg_btb-um-test.conllu',
-              'tur': 'data/UM/tur/tr_imst-um-test.conllu',
-              'spa': 'data/UM/spa/es_gsd-um-test.conllu',
-              'fra': 'data/UM/fra/fr_gsd-um-test.conllu'}
 
 if __name__ == "__main__":
     argparser = ArgumentParser()
@@ -136,19 +116,20 @@ if __name__ == "__main__":
     args = argparser.parse_args()
     model_type = args.model
     language = args.language
+    print(f'model: {model_type}')
     print(f'language: {language}')
     train_path = train_paths[language]
     dev_path = dev_paths[language]
     test_path = test_paths[language]
-    pickles_root = Path('pickles','UM', model_type, language)
+    pickles_root = Path('pickles', 'UM', model_type, language)
     if not pickles_root.exists():
         pickles_root.mkdir()
-    train_dump_path = Path(pickles_root,'train_parsed.pkl')
-    dev_dump_path = Path(pickles_root,'dev_parsed.pkl')
-    test_dump_path = Path(pickles_root,'test_parsed.pkl')
-    train_sentences_path = Path(pickles_root,'new_train_sentences.pkl')
-    dev_sentences_path = Path(pickles_root, 'new_dev_sentences.pkl')
-    test_sentences_path = Path(pickles_root, 'new_test_sentences.pkl')
+    train_dump_path = Path(pickles_root, 'train_parsed.pkl')
+    dev_dump_path = Path(pickles_root, 'dev_parsed.pkl')
+    test_dump_path = Path(pickles_root, 'test_parsed.pkl')
+    train_sentences_path = Path(pickles_root, 'train_sentences.pkl')
+    dev_sentences_path = Path(pickles_root, 'dev_sentences.pkl')
+    test_sentences_path = Path(pickles_root, 'test_sentences.pkl')
     train_attributes_path = Path(pickles_root, 'train_words_per_attribute.pkl')
     dev_attributes_path = Path(pickles_root, 'dev_words_per_attribute.pkl')
     test_attributes_path = Path(pickles_root, 'test_words_per_attribute.pkl')
@@ -167,8 +148,8 @@ if __name__ == "__main__":
     _UNIMORPH_VALUES_ATTRIBUTE = {v: k for k, vs in _UNIMORPH_ATTRIBUTE_VALUES.items() for v in vs}
     limit_number = None
     skipped: Dict[str, int] = {}
-    # Setup BERT tokenizer here provisionally as we need to know which sentences have over 512 subtokens
-    tokenizer = BertTokenizer.from_pretrained(model_name) if model_type == 'bert'\
+    # Setup tokenizer here provisionally as we need to know which sentences have over 512 subtokens
+    tokenizer = BertTokenizer.from_pretrained(model_name) if model_type == 'bert' \
         else XLMRobertaTokenizer.from_pretrained(model_name)
     for file_path, dump_path, sentences_path, attributes_path, lemmas_path in zip(
             [test_path, dev_path, train_path],
@@ -178,7 +159,7 @@ if __name__ == "__main__":
             [test_lemmas_path, dev_lemmas_path, train_lemmas_path]):
         final_token_list: List[TokenList] = []
         final_results = []
-        with open(file_path,'r') as h:
+        with open(file_path, 'r') as h:
             for sent_id, tokenlist in enumerate(tqdm(
                     parse_incr(h, fields=consts.UM_FEATS, field_parsers={"um_feats": unimorph_feature_parser}))):
                 # Only process first `limit_number` if it is set
@@ -235,8 +216,6 @@ if __name__ == "__main__":
 
                 # Add this sentence to the list we are processing
                 final_token_list.append(final_tokens)
-        # with open(dump_path,'wb+') as f:
-        #     pickle.dump(final_token_list, f, pickle.HIGHEST_PROTOCOL)
         print("Skipped:")
         print(skipped)
         print()
@@ -246,8 +225,8 @@ if __name__ == "__main__":
             continue
 
         print(f"Processing {file_path}...")
-        # Setup BERT
-        model = BertModel.from_pretrained(model_name).to(device) if model_type == 'bert'\
+        # Setup model
+        model = BertModel.from_pretrained(model_name).to(device) if model_type == 'bert' \
             else XLMRobertaModel.from_pretrained(model_name).to(device)
         # Subtokenize, keeping original token indices
         results = []
@@ -261,7 +240,7 @@ if __name__ == "__main__":
             subtoken_indices, subtokens = zip(*labelled_subwords)
             subtoken_indices_tensor = torch.tensor(subtoken_indices).to(device)
 
-            # We add special tokens to the sequence and remove them after getting the BERT output
+            # We add special tokens to the sequence and remove them after getting the output
             subtoken_ids = torch.tensor(
                 tokenizer.build_inputs_with_special_tokens(tokenizer.convert_tokens_to_ids(subtokens))).to(device)
 
@@ -272,20 +251,18 @@ if __name__ == "__main__":
 
         with open(sentences_path, 'wb+') as f:
             pickle.dump(sentences, f)
-        with open(lemmas_path,'wb+') as f:
+        with open(lemmas_path, 'wb+') as f:
             pickle.dump(lemmas, f)
-        # Prepare to compute BERT embeddings
+        # Prepare to compute embeddings
         model.eval()
 
         # NOTE: No batching, right now. But could be worthwhile to implement if a speed-up is necessary.
-        # subtokens_per_sentence = {}
         subtokens_for_attribute_for_sentence = {}
         for i, (token_list, subtoken_ids, subtoken_indices_tensor) in tqdm(enumerate(results)):
             total += 1
             real_subtokens = (subtoken_indices_tensor + 1).tolist()
-            subtokens_to_words = {j:[] for j in range(len(token_list)+2)}
-            [subtokens_to_words[token].append(j+1) for j, token in enumerate(real_subtokens)]
-            # subtokens_per_sentence[i] = subtokens_to_words
+            subtokens_to_words = {j: [] for j in range(len(token_list) + 2)}
+            [subtokens_to_words[token].append(j + 1) for j, token in enumerate(real_subtokens)]
             subtokens_for_attribute_for_sentence[i] = {}
             for token_idx, t in enumerate(token_list):
                 for attribute, label in t['um_feats'].items():
@@ -293,7 +270,7 @@ if __name__ == "__main__":
                         subtokens_for_attribute_for_sentence[i][attribute] = {}
                     if label not in subtokens_for_attribute_for_sentence[i][attribute]:
                         subtokens_for_attribute_for_sentence[i][attribute][label] = []
-                    subtokens_for_attribute_for_sentence[i][attribute][label].extend(subtokens_to_words[token_idx+1])
+                    subtokens_for_attribute_for_sentence[i][attribute][label].extend(subtokens_to_words[token_idx + 1])
             with torch.no_grad():
                 # shape: (batch_size, max_seq_length_in_batch + 2)
                 inputs = subtoken_ids.reshape(1, -1)
@@ -303,17 +280,14 @@ if __name__ == "__main__":
 
                 # shape: (batch_size, max_seq_length_in_batch + 2, embedding_size)
                 outputs = model(inputs, output_hidden_states=True)
-                # final_output = outputs[0]
-                final_output = torch.stack([hidden_state[0][1:-1] for hidden_state in outputs.hidden_states])
-                # final_output = final_output.permute(1,0,-1)
-                # shape: (batch_size, max_seq_length_in_batch, embedding_size)
                 # Here we remove the special tokens (BOS, EOS)
-                # final_output = torch.stack([output[:, 1:, :][:, :-1, :] for output in final_output])
+                final_output = torch.stack([hidden_state[0][1:-1] for hidden_state in outputs.hidden_states])
+                # shape: (batch_size, max_seq_length_in_batch, embedding_size)
 
                 # Average subtokens corresponding to the same word
                 # shape: (batch_size, max_num_tokens_in_batch, embedding_size)
                 token_embeddings = scatter_mean(final_output, indices, dim=1)
-                token_embeddings = token_embeddings.permute(1,0,-1)
+                token_embeddings = token_embeddings.permute(1, 0, -1)
 
             # Convert to python objects
             embedding_list = [x.squeeze(0).cpu().numpy() for x in token_embeddings.split(1, dim=0)]
@@ -337,4 +311,4 @@ if __name__ == "__main__":
             pickle.dump(final_results_filtered, h)
 
         with open(attributes_path, 'wb+') as h:
-            pickle.dump(subtokens_for_attribute_for_sentence,h)
+            pickle.dump(subtokens_for_attribute_for_sentence, h)
