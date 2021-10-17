@@ -334,6 +334,7 @@ class PosTagger(nn.Module):
         super(PosTagger, self).__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 class PosTaggerWholeVector(PosTagger):
     def __init__(self, num_labels, first_layer_size=0):
         super(PosTaggerWholeVector, self).__init__()
@@ -342,31 +343,6 @@ class PosTaggerWholeVector(PosTagger):
         preds = self.fc1(features)
         return preds
 
-class PosTaggerSingleNeuron(PosTagger):
-    def __init__(self, first_layer_size=0):
-        super(PosTaggerSingleNeuron, self).__init__(first_layer_size)
-        self.fc1 = nn.Linear(1, consts.LABEL_DIM).to(self.device)
-    def forward(self, feature):
-        preds = self.fc1(feature)
-        return preds
-
-class PosTaggerSingleWithHidden(PosTagger):
-    def __init__(self, first_layer_size=0):
-        super(PosTaggerSingleWithHidden, self).__init__(first_layer_size)
-        self.fc1 = nn.Linear(1, consts.HIDDEN_LAYER_DIM).to(self.device)
-        self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(consts.HIDDEN_LAYER_DIM, consts.BERT_OUTPUT_DIM).to(self.device)
-    def forward(self, feature):
-        preds = self.fc2(self.relu(self.fc1(feature)))
-        return preds
-
-class SinglePosPredictor(PosTagger):
-    def __init__(self,first_layer_size=0):
-        super(SinglePosPredictor, self).__init__(first_layer_size)
-        self.fc1 = nn.Linear(1, 2).to(self.device)
-    def forward(self, feature):
-        preds = self.fc1(feature)
-        return preds
 
 class PosTaggerSubset(PosTagger):
     def __init__(self, first_layer_size, num_labels):

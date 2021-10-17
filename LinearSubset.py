@@ -1,24 +1,23 @@
 import pickle
 
 from train_and_test import train, test
-from DataHandler import DataSubset, UMDataHandler
+from DataHandler import UMDataHandler
 import consts
-from model import PosTaggerWholeVector
 import torch
 from pathlib import Path
 from torch.utils.data.dataloader import DataLoader
-from rankingNeurons import get_top_neurons
-from linearCorrelationAnalysis import LCA
 from tqdm import tqdm as progressbar
 import logging
-logging.basicConfig(level=logging.INFO)
 import utils
 from argparse import ArgumentParser
 import sys
 
+logging.basicConfig(level=logging.INFO)
+
+
 def get_ranking(args):
     func, path = args[0], args[1]
-    if path != None:
+    if path is not None:
         if len(args) == 3:
             rank = func(path, args[2])
         else:
@@ -26,7 +25,6 @@ def get_ranking(args):
     else:
         rank = func()
     return rank
-
 
 
 if __name__ == "__main__":
@@ -48,19 +46,17 @@ if __name__ == "__main__":
     control = args.control
     small_dataset = False
     control_str = '_control' if control else ''
-    small_dataset_str = '_small' if small_dataset else ''
-    res_file_dir = Path('results', data_name, model_type, language, args.attribute,'layer '+str(layer))
+    res_file_dir = Path('results', data_name, model_type, language, args.attribute, 'layer ' + str(layer))
     if not res_file_dir.exists():
-        # res_file_dir.mkdir(parents=True, exist_ok=True)
         sys.exit('WRONG SETTING')
     linear_model_path = Path('pickles', data_name, model_type, language, attribute,
-                             'best_model_whole_vector_layer_' + str(layer) + control_str + small_dataset_str)
-    bayes_res_path = Path(res_file_dir, 'bayes by bayes mi'+control_str)
-    worst_bayes_res_path = Path(res_file_dir, 'bayes by worst mi'+control_str)
+                             'best_model_whole_vector_layer_' + str(layer) + control_str)
+    bayes_res_path = Path(res_file_dir, 'bayes by bayes mi' + control_str)
+    worst_bayes_res_path = Path(res_file_dir, 'bayes by worst mi' + control_str)
     cluster_ranking_path = Path('pickles', 'UM', model_type, language, attribute, str(layer), 'cluster_ranking.pkl')
 
     res_file_name = 'linear by ' + args.ranking + control_str
-    with open(Path(res_file_dir,res_file_name),'w+') as f:
+    with open(Path(res_file_dir, res_file_name), 'w+') as f:
         sys.stdout = f
         print('model: ', model_type)
         print('layer: ', layer)
@@ -72,22 +68,20 @@ if __name__ == "__main__":
         train_path = Path('pickles', data_name, model_type, language, 'train_parsed.pkl')
         test_path = Path('pickles', data_name, model_type, language, 'test_parsed.pkl')
         print('creating dataset')
-        data_model = UMDataHandler if data_name=='UM' else DataSubset
-        train_data_handler = data_model(train_path, data_name=data_name, model_type=model_type, layer=layer, control=control,
-                                        small_dataset=small_dataset, language=language, attribute=attribute)
+        data_model = UMDataHandler
+        train_data_handler = data_model(train_path, data_name=data_name, model_type=model_type, layer=layer,
+                                        control=control,
+                                        language=language, attribute=attribute)
         train_data_handler.create_dicts()
-        print('extracting features')
-        train_data_handler.get_features()
-        test_data_handler = data_model(test_path, data_name=data_name, model_type=model_type, layer=layer, control=control,
-                                       small_dataset=small_dataset, language=language, attribute=attribute)
+        # train_data_handler.get_features()
+        test_data_handler = data_model(test_path, data_name=data_name, model_type=model_type, layer=layer,
+                                       control=control,
+                                       language=language, attribute=attribute)
         test_data_handler.create_dicts()
-        test_data_handler.get_features()
-        # model_path = 'pickles/UD/best_model_whole_vector_layer_'+str(layer)+control_str+small_dataset_str
-        # model_path = 'pickles/PENN TO UD/best_model_whole_vector_layer_'+str(layer)+control_str+small_dataset_str
-        # for i in range(1, len(neurons_list)):
+        # test_data_handler.get_features()
         label_to_idx_path = Path('pickles', data_name, model_type, language, attribute, 'label_to_idx.pkl')
-        with open(label_to_idx_path, 'rb') as f:
-            label_to_idx = pickle.load(f)
+        with open(label_to_idx_path, 'rb') as g:
+            label_to_idx = pickle.load(g)
         num_labels = len(label_to_idx)
         ranking_params = {'top avg': (utils.sort_neurons_by_avg_weights, linear_model_path, num_labels),
                           'bottom avg': (utils.sort_neurons_by_avg_weights, linear_model_path, num_labels),
@@ -104,8 +98,10 @@ if __name__ == "__main__":
             neurons_list = list(reversed(neurons_list))
 
         for i in progressbar(range(1, consts.SUBSET_SIZE + 1)):
-            print('using %d neurons'%(i))
-            train_data_loader = DataLoader(train_data_handler.create_dataset(neurons_list[:i]), batch_size=consts.BATCH_SIZE)
+            print('using %d neurons' % (i))
+            train_data_loader = DataLoader(train_data_handler.create_dataset(neurons_list[:i]),
+                                           batch_size=consts.BATCH_SIZE)
             classifier = train(train_data_loader, model_name='subset', lambda1=0.001, lambda2=0.01, verbose=False)
-            test_data_loader = DataLoader(test_data_handler.create_dataset(neurons_list[:i]), batch_size=consts.BATCH_SIZE)
+            test_data_loader = DataLoader(test_data_handler.create_dataset(neurons_list[:i]),
+                                          batch_size=consts.BATCH_SIZE)
             test(classifier, test_data_loader)

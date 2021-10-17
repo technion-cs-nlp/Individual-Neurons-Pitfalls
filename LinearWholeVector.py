@@ -4,11 +4,13 @@ import consts
 import torch
 from torch.utils.data.dataloader import DataLoader
 import logging
-logging.basicConfig(level=logging.INFO)
 from pathlib import Path
 from argparse import ArgumentParser
 import sys
 import pickle
+
+logging.basicConfig(level=logging.INFO)
+
 
 def print_statistics(data_loader: DataLoader):
     labels_list = [example[1] for example in data_loader.dataset]
@@ -34,13 +36,11 @@ if __name__ == "__main__":
     layer = args.layer
     data_name = 'UM'
     control = args.control
-    small_dataset = False
     control_str = '_control' if control else ''
-    small_dataset_str = '_small' if small_dataset else ''
     save_path = Path('pickles', data_name, model_type, language, args.attribute)
     if not save_path.exists():
         save_path.mkdir(parents=True, exist_ok=True)
-    file_name = 'best_model_whole_vector_layer_' + str(layer) + control_str + small_dataset_str
+    file_name = f'best_model_whole_vector_layer_{str(layer)}{control_str}'
     save_path = Path(save_path, file_name)
     train_path = Path('pickles', data_name, model_type, language, 'train_parsed.pkl')
     dev_path = Path('pickles', data_name, model_type, language, 'dev_parsed.pkl')
@@ -57,26 +57,24 @@ if __name__ == "__main__":
         print('attribute: ', attribute)
         print('layer: ', layer)
         print('control: ', control)
-        print('small: ', small_dataset)
-        # data_name = 'PENN TO UD' if 'PENN TO UD' in train_path else 'PENN' if 'PENN' in train_path else 'UD'
-        data_model = UMDataHandler if data_name=='UM' else DataSubset
+        data_model = UMDataHandler
         print('creating dataset')
         train_data_handler = data_model(train_path, data_name, model_type=model_type, layer=layer, control=control,
-                                    small_dataset=small_dataset, language=language, attribute=attribute)
+                                        language=language, attribute=attribute)
         dev_data_handler = data_model(dev_path, data_name, model_type=model_type, layer=layer, control=control,
-                                      small_dataset=small_dataset, language=language, attribute=attribute)
+                                      language=language, attribute=attribute)
         test_data_handler = data_model(test_path, data_name, model_type=model_type, layer=layer, control=control,
-                                       small_dataset=small_dataset, language=language, attribute=attribute)
+                                       language=language, attribute=attribute)
         values_to_ignore = set()
         for data_set in [train_data_handler, dev_data_handler, test_data_handler]:
             data_set.create_dicts()
-            data_set.get_features()
+            # data_set.get_features()
             histogram = data_set.count_values_for_att()
             for value, words in histogram.items():
                 if len(words) < min_count:
                     values_to_ignore.add(value)
-        with open(Path('pickles', data_name, model_type, language, attribute, 'values_to_ignore.pkl'), 'wb+') as f:
-            pickle.dump(values_to_ignore,f)
+        with open(Path('pickles', data_name, model_type, language, attribute, 'values_to_ignore.pkl'), 'wb+') as g:
+            pickle.dump(values_to_ignore, g)
         print('ignoring labels: {}'.format(values_to_ignore))
         print('creating train and test datasets')
         train_data_loader = DataLoader(train_data_handler.create_dataset(), batch_size=consts.BATCH_SIZE)
@@ -87,6 +85,3 @@ if __name__ == "__main__":
         classifier = train(train_data_loader, lambda1=0.001, lambda2=0.01, model_name='wholeVector',
                            save_path=save_path)
         test(classifier, test_data_loader)
-
-
-

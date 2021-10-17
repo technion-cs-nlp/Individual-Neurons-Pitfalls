@@ -23,41 +23,40 @@ def get_ranking(args):
     return rank
 
 class Bayesian():
-    def __init__(self, layer, data_name, model_type, control=False, small_dataset = False, language='', attribute='POS'):
+    def __init__(self, layer, data_name, model_type, control=False, language='', attribute='POS'):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model_type = model_type
         self.layer = layer
         self.control = control
         self.language = language
         self.attribute = attribute
-        small_dataset_str = '_small' if small_dataset else ''
         if data_name == 'UM':
             self.UM_data_prep()
         else:
-            self.train_features = utils.load_obj('features_tensor_layer_'+str(self.layer)+small_dataset_str,
+            self.train_features = utils.load_obj('features_tensor_layer_'+str(self.layer),
                                                  self.device,'train_',data_name, model_type).to(self.device)
             if self.control:
                 self.train_labels = torch.tensor(utils.load_obj(
-                    'control_tags'+small_dataset_str,self.device,'train_',data_name, model_type)).to(self.device)
+                    'control_tags',self.device,'train_',data_name, model_type)).to(self.device)
             else:
                 self.train_labels = utils.load_obj(
-                    'labels_tensor'+small_dataset_str,self.device,'train_',data_name, model_type).to(self.device)
-            self.dev_features = utils.load_obj('features_tensor_layer_'+str(self.layer)+small_dataset_str,
+                    'labels_tensor',self.device,'train_',data_name, model_type).to(self.device)
+            self.dev_features = utils.load_obj('features_tensor_layer_'+str(self.layer),
                                                  self.device,'dev_',data_name, model_type).to(self.device)
             if self.control:
                 self.dev_labels = torch.tensor(utils.load_obj(
-                    'control_tags'+small_dataset_str,self.device,'dev_',data_name, model_type)).to(self.device)
+                    'control_tags',self.device,'dev_',data_name, model_type)).to(self.device)
             else:
                 self.dev_labels = utils.load_obj(
-                    'labels_tensor'+small_dataset_str,self.device,'dev_',data_name, model_type).to(self.device)
+                    'labels_tensor',self.device,'dev_',data_name, model_type).to(self.device)
             self.test_features = utils.load_obj(
-                'features_tensor_layer_'+str(self.layer)+small_dataset_str,self.device,'test_',data_name, model_type).to(self.device)
+                'features_tensor_layer_'+str(self.layer),self.device,'test_',data_name, model_type).to(self.device)
             if self.control:
                 self.test_labels = torch.tensor(utils.load_obj(
-                    'control_tags'+small_dataset_str,self.device,'test_',data_name, model_type)).to(self.device)
+                    'control_tags',self.device,'test_',data_name, model_type)).to(self.device)
             else:
                 self.test_labels = utils.load_obj(
-                    'labels_tensor'+small_dataset_str,self.device,'test_',data_name, model_type).to(self.device)
+                    'labels_tensor',self.device,'test_',data_name, model_type).to(self.device)
         self.labels_dim = len(set(self.train_labels.tolist()))
         self.get_categorical()
         self.get_mean_and_cov()
@@ -301,9 +300,7 @@ if __name__ == "__main__":
     ranking = args.ranking
     control = args.control
     from_log = args.from_log
-    small_dataset = False
     control_str = '_control' if control else ''
-    small_dataset_str = '_small' if small_dataset else ''
     data_name = 'UM'
     greedy = True if ranking.startswith('greedy') else False
     label_to_idx_path = Path('pickles', 'UM', model_type, language, attribute, 'label_to_idx.pkl')
@@ -313,11 +310,11 @@ if __name__ == "__main__":
     if not res_file_dir.exists():
         res_file_dir.mkdir(parents=True, exist_ok=True)
     linear_model_path = Path('pickles', data_name, model_type, language, attribute,
-                             'best_model_whole_vector_layer_' + str(layer) + control_str + small_dataset_str)
+                             'best_model_whole_vector_layer_' + str(layer) + control_str)
     cluster_ranking_path = Path('pickles', 'UM', model_type, language, attribute, str(layer), 'cluster_ranking.pkl')
     bayes_res_path = Path(res_file_dir,'bayes by bayes mi'+control_str)
     worst_bayes_res_path = Path(res_file_dir, 'bayes by worst mi'+control_str)
-    bayes = Bayesian(model_type=model_type, layer=layer, control=control, small_dataset=small_dataset, data_name=data_name,
+    bayes = Bayesian(model_type=model_type, layer=layer, control=control, data_name=data_name,
                      language=language, attribute=attribute)
     if ranking == 'greedy best':
         res_suffix = 'bayes mi'
@@ -333,7 +330,6 @@ if __name__ == "__main__":
         print('model: ',model_type)
         print('layer: ', layer)
         print('control: ', control)
-        print('small: ', small_dataset)
         print('language: ', language)
         print('attribute: ', attribute)
         if greedy:
