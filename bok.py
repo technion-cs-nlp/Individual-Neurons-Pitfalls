@@ -147,9 +147,9 @@ class bokehPlots():
         res = {}
         all_rankings_res = {}
         # for ranking in self.rankings[:7]:
-        for ranking in ['by top avg', 'by top cluster', 'by bayes mi', 'by random', 'by bottom avg',
-                        'by bottom cluster', 'by worst mi']:
-        # for ranking in ['by top avg', 'by top cluster', 'by bayes mi']:
+        # for ranking in ['by top avg', 'by top cluster', 'by bayes mi', 'by random', 'by bottom avg',
+        #                 'by bottom cluster', 'by worst mi']:
+        for ranking in ['by top avg', 'by top cluster']:
             # num_ablated = [str(r[0]) for r in self.res[ranking]['wrong words']]
             to_plot = {}
             inter_types = ['ablation', 'bugged scaling', r'$\alpha=1$', r'$\alpha=2$', r'$\alpha=4$', r'$\alpha=6$',
@@ -473,10 +473,10 @@ def new_plot_and_dump(model_type, set_type, langs, alpha, dump=False):
             if att_path.name == 'Part of Speech':
                 continue
             res[lan][att_path.name] = {}
-            if att_path.name != 'Tense':
-                continue
+            # if att_path.name != 'Tense':
+            #     continue
             # for layer in [2, 7, 12]:
-            for layer in [12]:
+            for layer in [1]:
                 bok = bokehPlots(model_type, set_type, lan, att_path.name, layer)
                 bok.load_data()
                 res[lan][att_path.name][layer] = bok.plot_line(alpha)
@@ -487,17 +487,17 @@ def new_plot_and_dump(model_type, set_type, langs, alpha, dump=False):
 if __name__ == "__main__":
     # languages = ['eng', 'spa', 'fra']
     model_type = 'bert'
-    set_type = ''
-    languages = ['eng']
+    set_type = 'test'
+    languages = ['eng', 'fra', 'spa']
     # plot_and_dump(languages)
     # create_dataset(languages)
     # for alpha in [2, 4, 6, 8, 10, 12]:
     for alpha in [8]:
         new_plot_and_dump(model_type, set_type, languages, alpha, dump=False)
     # for alpha in [2, 4, 8]:
-    # for alpha in [2]:
-    #     print(f'alpha: {alpha}')
-    #     create_dataset(model_type, languages, alpha)
+    for alpha in [8]:
+        print(f'alpha: {alpha}')
+        create_dataset(model_type, languages, alpha)
 
 
 

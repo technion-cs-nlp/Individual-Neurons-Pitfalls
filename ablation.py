@@ -203,6 +203,8 @@ if __name__ == "__main__":
     parser.add_argument('-scaling', type=str)
     args = parser.parse_args()
     set_type = args.set
+    if set_type is None:
+        set_type = 'test'
     model_type = args.model
     language = args.language
     attribute = args.attribute

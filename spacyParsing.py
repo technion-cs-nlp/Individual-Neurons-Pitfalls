@@ -206,7 +206,7 @@ if __name__ == '__main__':
             sys.exit('WRONG SETTING')
     res_dir = Path('results','UM', model_type, language, attribute, 'layer '+str(layer), 'spacy', set_type)
     if not res_dir.exists():
-        res_dir.mkdir()
+        res_dir.mkdir(parents=True)
     set_str = f'_{set_type}'
     res_file_name = 'by ' + ranking + intervention_str + params_str + scaling_str
     # res_file_name += '_tmp'

@@ -668,7 +668,8 @@ def run_morph(dir_path, set_type, plot_separate, all_rankings, only_dump=False):
             fig, axs = plt.subplots(num_subplots, figsize=[8.4, 6.8])
             fig.suptitle(' '.join(['ablation', dir_path.parts[-2], dir_path.parts[-1], name, 'per layer']))
             legend = None
-        for i, layer in enumerate([2, 7, 12]):
+        # for i, layer in enumerate([2, 7, 12]):
+        for i, layer in enumerate([1]):
             max_nums = [0, 400, 600] if plot_separate else [0]
             for max_num in max_nums:
                 # for max_num in [0]:
@@ -698,16 +699,16 @@ def run_morph(dir_path, set_type, plot_separate, all_rankings, only_dump=False):
 if __name__ == "__main__":
     data_name = 'UM'
     model_type = 'bert'
-    set_type = 'dev'
+    set_type = 'test'
     # languages = ['eng', 'ara', 'hin', 'rus', 'fin', 'bul', 'tur', 'spa', 'fra']
-    languages = ['hin']
+    languages = ['eng', 'spa', 'fra']
     for lan in languages:
         print(lan)
         root_path = Path('results', data_name, model_type, lan)
         atts_path = [p for p in root_path.glob('*') if not p.is_file()]
         for att_path in atts_path:
-            if 'Part of Speech' != att_path.name:
-                continue
-            run_all_probing(att_path, plot_separate=True, only_dump=False)
+            # if 'Part of Speech' != att_path.name:
+            #     continue
+            # run_all_probing(att_path, plot_separate=True, only_dump=False)
             # run_ablation(att_path, plot_separate=False)
-            # run_morph(att_path, set_type, plot_separate=False, all_rankings=False, only_dump=True)
+            run_morph(att_path, set_type, plot_separate=False, all_rankings=False, only_dump=True)
