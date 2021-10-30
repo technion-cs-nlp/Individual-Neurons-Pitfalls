@@ -1,5 +1,5 @@
 from train_and_test import train, test
-from DataHandler import DataSubset, UMDataHandler
+from DataHandler import UMDataHandler
 import consts
 import torch
 from torch.utils.data.dataloader import DataLoader

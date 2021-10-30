@@ -71,8 +71,8 @@ class DataHandler():
             return
 
     def get_features_for_ablation(self):
-        self.features_by_sentece = self.load_obj('features_layer_' + str(self.layer))
-        if self.features_by_sentece is not None:
+        self.features_by_sentence = self.load_obj('features_layer_' + str(self.layer))
+        if self.features_by_sentence is not None:
             self.features_tensor = self.load_obj('features_tensor_' + str(self.layer))
             return
         if self.data_name == 'UM':
@@ -80,7 +80,7 @@ class DataHandler():
                              self.set_name + 'features_layer_' + str(self.layer))
             if dump_path.exists():
                 return
-        self.features_tensor, self.features_by_sentece = [], {}
+        self.features_tensor, self.features_by_sentence = [], {}
         bert_model = BertLM(self.model_type, self.layer)
         total_loss, total_correct, total_tokens = 0., 0., 0.
         skipped = []
@@ -92,7 +92,7 @@ class DataHandler():
                 continue
             loss, correct_preds, tokens, sentence_features = bert_res
             self.features_tensor.append(sentence_features)
-            self.features_by_sentece[idx] = sentence_features
+            self.features_by_sentence[idx] = sentence_features
             total_loss += loss
             total_correct += correct_preds
             total_tokens += tokens
@@ -106,14 +106,14 @@ class DataHandler():
             dump_path = Path('pickles', self.data_name, self.model_type, self.language,
                              self.set_name + 'features_layer_' + str(self.layer))
             with open(dump_path, 'wb+') as f:
-                pickle.dump(self.features_by_sentece, f)
+                pickle.dump(self.features_by_sentence, f)
             if skipped:
                 dump_path = Path('pickles', self.data_name, self.model_type,
                                  self.language, self.set_name + 'skipped_sentences.pkl')
                 with open(dump_path, 'wb+'):
                     pickle.dump(skipped, f)
             return
-        self.save_obj(self.features_by_sentece, 'features_layer_' + str(self.layer))
+        self.save_obj(self.features_by_sentence, 'features_layer_' + str(self.layer))
         self.save_obj(self.features_tensor, 'features_tensor_layer_' + str(self.layer))
 
 
