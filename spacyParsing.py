@@ -1,36 +1,33 @@
-
 import pickle
 import sys
 from argparse import ArgumentParser
-
 import spacy
 from pathlib import Path
 from tqdm import tqdm
-# from tokenizers import BertWordPieceTokenizer
-# from spacy.tokens import Doc
-# from transformers import BertTokenizer
+
 
 class morphCompare():
-    def __init__(self, dump_path, set_type, model_type, language, attribute, layer, ranking, intervention=False, step=-1, alpha=1, scaling=False):
+    def __init__(self, dump_path, set_type, model_type, language, attribute, layer, ranking, translation=False, step=-1,
+                 alpha=1, scaled=False):
         self.set_type = set_type
         self.model_type = model_type
         self.language = language
         self.attribute = attribute
         self.layer = layer
         self.ranking = ranking
-        self.intervention_str = '_intervention' if intervention else ''
+        self.translation_str = 'translation' if translation else ''
         self.step = step
         self.alpha = alpha
         self.dump_path = dump_path
-        alpha_str = str(float(alpha)) if scaling else str(alpha)
+        alpha_str = str(float(alpha)) if scaled else str(alpha)
         self.params_str = f'_{step}_{alpha_str}' if step != -1 else ''
-        self.scaling_str = '_' + scaling if scaling else ''
-        gpu=spacy.prefer_gpu()
+        self.scaling_str = '_scaled' if scaled else ''
+        gpu = spacy.prefer_gpu()
         print(f'using gpu: {gpu}')
-        parsers = {'eng':'en_core_web_sm',
-                   'rus':'ru_core_news_sm',
-                   'spa':'es_core_news_sm',
-                   'fra':'fr_dep_news_trf'}
+        parsers = {'eng': 'en_core_web_sm',
+                   'rus': 'ru_core_news_sm',
+                   'spa': 'es_core_news_sm',
+                   'fra': 'fr_dep_news_trf'}
         self.parser = spacy.load(parsers[self.language])
         # self.parser.tokenizer = BertTokenizer(self.parser.vocab, "bert-base-multilingual-cased-vocab.txt")
         self.true_morph, self.true_words_to_tokens, self.true_tokens_to_words = self.parse_true()
@@ -46,7 +43,7 @@ class morphCompare():
             for word_idx, word in enumerate(sentence.split(' ')):
                 word_tokens_len = len(self.parser.tokenizer(word))
                 word_tokens_idxs = list(range(token_idx, token_idx + word_tokens_len))
-                sentence_by_tokens[word_idx]=word_tokens_idxs
+                sentence_by_tokens[word_idx] = word_tokens_idxs
                 for token in word_tokens_idxs:
                     toks_to_words[token] = word_idx
                 token_idx += word_tokens_len
@@ -54,12 +51,11 @@ class morphCompare():
             tokens_to_words.append(toks_to_words)
         return sentences_by_tokens, tokens_to_words
 
-
     def parse(self, sentences):
         stats = {}
         for sent_idx, sentence in enumerate(sentences):
             parsed_sentence = self.parser(sentence)
-            sentence_stats = {'ids': {},'lemmas': {}, 'attribute': {}}
+            sentence_stats = {'ids': {}, 'lemmas': {}, 'attribute': {}}
             for token_idx, token in enumerate(parsed_sentence):
                 sentence_stats['ids'][token_idx] = token.text
                 sentence_stats['lemmas'][token_idx] = token.lemma_
@@ -67,7 +63,7 @@ class morphCompare():
                     sentence_stats['attribute'][token_idx] = token.pos_
                 morph = token.morph.to_dict()
                 if self.attribute == "Gender and Noun Class":
-                    #mismatch between UM and Spacy notations
+                    # mismatch between UM and Spacy notations
                     if 'Gender' in morph:
                         sentence_stats['attribute'][token_idx] = morph['Gender']
                 elif self.attribute in morph:
@@ -87,12 +83,8 @@ class morphCompare():
         return parsed, tokenization, rev_tokenization
 
     def parse_preds(self):
-        # pred_sentences_path = Path('pickles', 'UM', self.model_type, self.language, self.attribute, str(self.layer),
-        #                            'ablation_token_outputs_by_' + self.ranking + self.intervention_str +
-        #                            self.params_str + self.scaling_str + '.pkl')
-
-        with open(self.dump_path, 'rb') as f:
-            pred_sentences = pickle.load(f)
+        with open(self.dump_path, 'rb') as g:
+            pred_sentences = pickle.load(g)
         pred_stats, pred_tokenization, pred_rev_tokenization = {}, {}, {}
         for num_ablated, preds in tqdm(pred_sentences.items()):
             joined_preds = [' '.join(words) for words in preds]
@@ -131,16 +123,18 @@ class morphCompare():
                     stats['correct word'] += 1
                 else:
                     stats['wrong word'] += 1
-                    if curr_stats['lemmas'][token_idx].lower() == pred_morph[sent_idx]['lemmas'][pred_token_idx].lower():
+                    if curr_stats['lemmas'][token_idx].lower() == pred_morph[sent_idx]['lemmas'][
+                        pred_token_idx].lower():
                         stats['correct lemma'] += 1
-                        if pred_token_idx in pred_morph[sent_idx]['attribute'].keys() and val == pred_morph[sent_idx]['attribute'][pred_token_idx]:
+                        if pred_token_idx in pred_morph[sent_idx]['attribute'].keys() and val == \
+                                pred_morph[sent_idx]['attribute'][pred_token_idx]:
                             stats['correct lemma, correct value'] += 1
                         else:
                             stats['correct lemma, wrong value'] += 1
                     else:
                         stats['wrong lemma'] += 1
                         if pred_token_idx in pred_morph[sent_idx]['attribute'].keys() \
-                            and val == pred_morph[sent_idx]['attribute'][pred_token_idx]:
+                                and val == pred_morph[sent_idx]['attribute'][pred_token_idx]:
                             stats['wrong lemma, correct value'] += 1
                         else:
                             stats['wrong lemma, wrong value'] += 1
@@ -171,8 +165,8 @@ if __name__ == '__main__':
     argparser.add_argument('-ranking', type=str)
     argparser.add_argument('-step', type=int, default=-1)
     argparser.add_argument('-alpha', type=int, default=1)
-    argparser.add_argument('--intervention', default=False, action='store_true')
-    argparser.add_argument('-scaling', type=str)
+    argparser.add_argument('--translation', default=False, action='store_true')
+    argparser.add_argument('-scaled', default=False, action='store_true')
     args = argparser.parse_args()
     set_type = args.set
     model_type = args.model
@@ -182,35 +176,25 @@ if __name__ == '__main__':
     ranking = args.ranking
     step = args.step
     alpha = args.alpha
-    intervention = args.intervention
-    scaling = args.scaling
-    intervention_str = '_intervention' if intervention else ''
-    scaling_str = '_' + scaling if scaling else ''
-    alpha_str = str(float(alpha)) if scaling else str(alpha)
+    translation = args.translation
+    scaled = args.scaling
+    translation_str = '_translation' if translation else ''
+    scaled_str = '_scaled' if scaled else ''
+    alpha_str = str(float(alpha)) if scaled else str(alpha)
     params_str = f'_{step}_{alpha_str}' if step != -1 else ''
-    set_str = f'+{set_type}'  # + because im stupid
-    dump_path = Path('pickles', 'UM', model_type, language, attribute, str(layer), 'ablation_token_outputs_by_'
-                     + ranking + intervention_str + params_str + scaling_str + set_str + '.pkl')
+    dump_path = Path('pickles', 'UM', model_type, language, attribute, str(layer), set_type,
+                     'ablation_token_outputs_by_' + ranking + translation_str + params_str + scaled_str + '.pkl')
     if not dump_path.exists():
-        # all of this is because im stupid
-        if set_type == 'test':
-            dump_path = Path('pickles', 'UM', model_type, language, attribute, str(layer), 'ablation_token_outputs_by_'
-                             + ranking + intervention_str + params_str + scaling_str + '+None' + '.pkl')
-            if not dump_path.exists():
-                dump_path = Path('pickles', 'UM', model_type, language, attribute, str(layer),
-                                 'ablation_token_outputs_by_'
-                                 + ranking + intervention_str + params_str + scaling_str + '.pkl')
-                if not dump_path.exists():
-                    sys.exit('WRONG SETTING')
-        else:
-            sys.exit('WRONG SETTING')
-    res_dir = Path('results','UM', model_type, language, attribute, 'layer '+str(layer), 'spacy', set_type)
+        sys.exit('WRONG SETTING')
+    res_dir = Path('results', 'UM', model_type, language, attribute, 'layer ' + str(layer), 'spacy', set_type)
     if not res_dir.exists():
         res_dir.mkdir(parents=True)
     set_str = f'_{set_type}'
-    res_file_name = 'by ' + ranking + intervention_str + params_str + scaling_str
+    res_file_name = 'by ' + ranking + translation_str + params_str + scaled_str
+    # TODO for debug
     # res_file_name += '_tmp'
-    with open(Path(res_dir, res_file_name), 'w+') as f: ###############TODO
+    ################
+    with open(Path(res_dir, res_file_name), 'w+') as f:
         sys.stdout = f
         print('set: ', set_type)
         print('model: ', language)
@@ -221,5 +205,5 @@ if __name__ == '__main__':
         print('step: ', step)
         print('alpha: ', alpha)
         mc = morphCompare(dump_path, set_type, model_type, language, attribute, layer, ranking,
-                          intervention=intervention, step=step, alpha=alpha, scaling=scaling)
+                          translation=translation, step=step, alpha=alpha, scaled=scaled)
         mc.comp_all()

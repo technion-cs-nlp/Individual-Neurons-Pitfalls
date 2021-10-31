@@ -1,7 +1,3 @@
-from bokeh.io import output_file, show, save, export_png
-from bokeh.plotting import figure
-from bokeh.models import CDSView, BooleanFilter, ColumnDataSource, Label, Legend
-from bokeh.palettes import Category10
 import pickle
 from pathlib import Path
 import numpy as np
