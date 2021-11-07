@@ -1,4 +1,7 @@
+import sys
+
 import matplotlib.pyplot as plt
+import matplotlib.ticker as plticker
 from pathlib import Path
 import torch
 import consts
@@ -7,8 +10,10 @@ import copy
 from argparse import ArgumentParser
 import ast
 import pickle
+import numpy as np
 
-class plots():
+
+class plots:
     def __init__(self, dir_path: Path, max_num: int, ablation: bool = False):
         self.dir_path = dir_path
         self.max_num = max_num
@@ -256,93 +261,9 @@ class probing(plots):
             return ax, legend
 
 
-class ablation(plots):
-    def __init__(self, dir_path, names, layer, max_num=consts.BERT_OUTPUT_DIM):
-        super(ablation, self).__init__(dir_path=dir_path, max_num=max_num, ablation=True)
-        self.colors = {'by bayes mi': 'black', 'by top avg': 'red',
-                       'by bottom avg': 'orange', 'by worst mi': 'purple', 'by random': 'green',
-                       'by top cluster': 'aquamarine', 'by bottom cluster': 'lightslategray'}
-        self.names = names
-        self.layer = layer
-        self.language = dir_path.parts[2]
-        self.attribute = dir_path.parts[3]
-        self.load_results()
-        self.save_path = Path(self.save_path, str(self.max_num))
-        if not self.save_path.exists():
-            self.save_path.mkdir(parents=True, exist_ok=True)
-        self.layer_str = 'layer ' + str(self.layer)
-
-    def load_results(self):
-        self.total_accs = {name: [] for name in self.names}
-        self.loss_results = {name: [] for name in self.names}
-        self.relevant_accs = {name: [] for name in self.names}
-        self.irrelevant_accs = {name: [] for name in self.names}
-        num_neurons = 0
-        for name in self.names:
-            with open(Path(self.dir_path, name), 'r') as f:
-                for line in f.readlines():
-                    if line.startswith('using') and 'neurons' in line:
-                        num_neurons = int(line.split()[1])
-                    if line.startswith('loss'):
-                        # self.loss_results[name].insert(0, round(float(line.split()[-1]), ndigits=4))
-                        self.loss_results[name].append((consts.BERT_OUTPUT_DIM - num_neurons,
-                                                        round(float(line.split()[-1]), ndigits=4)))
-                    if line.startswith('accuracy'):
-                        # self.total_accs[name].insert(0, round(float(line.split()[-1]), ndigits=4))
-                        self.total_accs[name].append((consts.BERT_OUTPUT_DIM - num_neurons,
-                                                      round(float(line.split()[-1]), ndigits=4)))
-                    if line.startswith('relevant words accuracy'):
-                        # self.relevant_accs[name].insert(0, round(float(line.split()[-1]), ndigits=4))
-                        self.relevant_accs[name].append((consts.BERT_OUTPUT_DIM - num_neurons,
-                                                         round(float(line.split()[-1]), ndigits=4)))
-                    if line.startswith('irrelevant words accuracy'):
-                        # self.irrelevant_accs[name].insert(0, round(float(line.split()[-1]), ndigits=4))
-                        self.irrelevant_accs[name].append((consts.BERT_OUTPUT_DIM - num_neurons,
-                                                           round(float(line.split()[-1]), ndigits=4)))
-
-    def dump_results(self):
-        dump_path = Path(self.dir_path, 'results.pkl')
-        res_to_dump = {'relevant acc': self.relevant_accs}
-        with open(dump_path, 'wb+') as f:
-            pickle.dump(res_to_dump, f)
-
-    def draw_plot(self, ax, sorted_results, **kwargs):
-        legend = []
-        for name, res in sorted_results:
-            x_axis = [r[0] for r in res]
-            y_axis = [r[1] for r in res]
-            try:
-                max_num_idx = x_axis.index(self.max_num)
-            except ValueError:
-                max_num_idx = 0
-            prefix = len('sparsed ')
-            if self.layer == 2:
-                ax.plot(x_axis[max_num_idx:], y_axis[max_num_idx:], color=self.colors[name[prefix:]],
-                        label=name[prefix:] if name.startswith('sparsed') else name)
-            else:
-                ax.plot(x_axis[max_num_idx:], y_axis[max_num_idx:], color=self.colors[name[prefix:]])
-            legend.append(name)
-        return ax, legend
-
-    def plot_metric(self, ax, to_save, metric):
-        graph_types = {'total accuracy': self.total_accs, 'loss': self.loss_results,
-                       'ablated words accuracy': self.relevant_accs,
-                       'non-ablated words accuracy': self.irrelevant_accs}
-        results = graph_types[metric]
-        title = ' '.join([self.language, self.attribute, self.layer_str, 'ablation ']) + metric
-        ax, legend = self.prep_plot(title, results, metric, xlabel='ablated neurons', ylabel=metric, ax=ax,
-                                    to_save=to_save)
-        return ax, legend
-
-
-class morphologyAblation(plots):
+class InterDump(plots):
     def __init__(self, dir_path, names, layer, max_num=760):
-        super(morphologyAblation, self).__init__(dir_path, max_num)
-        self.colors = {'by bayes mi': 'black', 'by top avg': 'red',
-                       'by bottom avg': 'orange', 'by worst mi': 'purple', 'by random': 'green',
-                       'wrong words': 'black', 'correct lemmas': 'red',
-                       'kept attribute': 'orange', 'correct values': 'purple',
-                       'split words': 'green'}
+        super(InterDump, self).__init__(dir_path, max_num)
         self.names = names
         self.language = dir_path.parts[2]
         self.attribute = dir_path.parts[3]
@@ -423,6 +344,140 @@ class morphologyAblation(plots):
                     pickle.dump(res, f)
 
 
+class InterPlot:
+    def __init__(self, model_type, set_type, language, attr, layer):
+        self.model_type = model_type
+        self.set_type = set_type
+        self.language = language
+        self.attribute = attr
+        self.layer = layer
+        cmap = plt.get_cmap('Paired').colors
+        self.line_colors_all_rankings = dict(zip(['by top avg', 'by top cluster', 'by bayes mi', 'by random',
+                                                  'by bottom avg', 'by bottom cluster', 'by worst mi'],
+                                                 cmap))
+        self.linestyles = {'error rate': 'solid', 'CLWV': 'dashed'}
+        self.root_path = Path('results', 'UM', self.model_type, self.language, self.attribute,
+                              'layer ' + str(self.layer), 'spacy', self.set_type)
+
+    def load_data(self):
+        wrong_words_path = Path(self.root_path, 'wrong words')
+        correct_lemmas_path = Path(self.root_path, 'correct lemmas')
+        kept_att_path = Path(self.root_path, 'kept attribute')
+        correct_val_path = Path(self.root_path, 'correct val')
+        c_lemma_c_val_path = Path(self.root_path, 'c lemmas c val')
+        c_lemma_w_val_path = Path(self.root_path, 'c lemmas w val')
+        w_lemma_c_val_path = Path(self.root_path, 'w lemmas c val')
+        w_lemma_w_val_path = Path(self.root_path, 'w lemmas w val')
+        rankings = ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi',
+                    'by top cluster', 'by bottom cluster', 'by random']
+        self.rankings = rankings + [r + '_intervention' for r in rankings] + \
+                        [f'{r}_intervention_{step}_{alpha}' for r in rankings for step in [10] for alpha in
+                         [1, 2, 4, 6, 8]] + \
+                        [f'{r}_intervention_{step}_{alpha}__scaled' for r in rankings for step in [10] for alpha in
+                         [2.0, 6.0, 8.0, 10.0, 12.0]] + \
+                        [f'{r}_intervention_{step}_{alpha}_lnspace' for r in rankings for step in [10] for alpha in
+                         [2.0, 4.0, 6.0, 8.0, 10.0, 12.0]]
+
+        stat_names = ['wrong words', 'correct lemmas', 'kept att', 'correct val', 'c lemma c val',
+                      'c lemma w val', 'w lemma c val', 'w lemma w val']
+        self.res = dict(zip(self.rankings, [dict.fromkeys(stat_names) for _ in self.rankings]))
+        for ranking in self.rankings:
+            if not Path(wrong_words_path, ranking).exists():
+                continue
+            with open(Path(wrong_words_path, ranking), 'rb') as f:
+                self.res[ranking]['wrong words'] = pickle.load(f)
+            with open(Path(correct_lemmas_path, ranking), 'rb') as f:
+                self.res[ranking]['correct lemmas'] = pickle.load(f)
+            with open(Path(kept_att_path, ranking), 'rb') as f:
+                self.res[ranking]['kept att'] = pickle.load(f)
+            with open(Path(correct_val_path, ranking), 'rb') as f:
+                self.res[ranking]['correct val'] = pickle.load(f)
+            with open(Path(c_lemma_c_val_path, ranking), 'rb') as f:
+                self.res[ranking]['c lemma c val'] = pickle.load(f)
+            with open(Path(c_lemma_w_val_path, ranking), 'rb') as f:
+                self.res[ranking]['c lemma w val'] = pickle.load(f)
+            with open(Path(w_lemma_c_val_path, ranking), 'rb') as f:
+                self.res[ranking]['w lemma c val'] = pickle.load(f)
+            with open(Path(w_lemma_w_val_path, ranking), 'rb') as f:
+                self.res[ranking]['w lemma w val'] = pickle.load(f)
+
+    def plot_line(self, alpha, scaled):
+        all_rankings_res = {}
+        # for ranking in self.rankings[:7]:
+        for ranking in ['by top avg', 'by top cluster', 'by bayes mi', 'by random', 'by bottom avg',
+                        'by bottom cluster', 'by worst mi']:
+            # for ranking in ['by top avg', 'by top cluster']:
+            # num_ablated = [str(r[0]) for r in self.res[ranking]['wrong words']]
+            to_plot = {}
+            inter_types = ['ablation', r'$\alpha=2$',
+                           r'$\alpha=8$', r'ranking scale $\alpha=6$', r'ranking scale $\alpha=8$',
+                           r'ranking scale $\alpha=12$', r'ln scale $\alpha=2$',
+                           r'ln scale $\alpha=4$', r'ln scale $\alpha=6$', r'ln scale $\alpha=8$',
+                           r'ln scale $\alpha=10$', r'ln scale $\alpha=12$']
+
+            for inter_type in inter_types:
+                method = ranking if inter_type == 'ablation' else f'{ranking}_intervention_10_{inter_type[-2]}' \
+                    if 'scale' not in inter_type else \
+                    f'{ranking}_intervention_10_{float(inter_type[inter_type.index("=") + 1:-1])}__scaled' \
+                        if 'ln' not in inter_type else \
+                        f'{ranking}_intervention_10_{float(inter_type[inter_type.index("=") + 1:-1])}_lnspace'
+                if self.res[method]['wrong words']:
+                    wrong_preds = np.array([r[1] for r in self.res[method]['wrong words']])
+                    clwv = np.array([r[1] for r in self.res[method]['c lemma w val']]) * wrong_preds
+                    to_plot[inter_type] = (wrong_preds, clwv)
+            if alpha == 0:
+                all_rankings_res[ranking] = to_plot['ablation']
+            elif not scaled:
+                all_rankings_res[ranking] = to_plot[r'$\alpha=' + str(alpha) + '$']
+            else:
+                all_rankings_res[ranking] = to_plot[r'ln scale $\alpha=' + str(alpha) + '$']
+        ticks = [i * 10 for i in range(len(list(all_rankings_res.values())[0][0]))]
+        # num_ablated = [str(r[0]) for r in self.res['by top avg_intervention_10_8.0_lnspace']['wrong words']]
+        title = 'ablation' if alpha == 0 else f'alpha_{alpha}_scaled' if scaled else f'alpha_{alpha}'
+        self.plot_by_plt(ticks, all_rankings_res, title, False)
+        max_points = {ranking: self.find_saturation_point(stats[1], 1.05, 0.1, ticks) for ranking, stats in
+                      all_rankings_res.items()}
+        return max_points
+
+    def find_saturation_point(self, stats: np.array, k1, k2, x_ticks):
+        for i in range(len(stats) - 2):
+            improvement1, improvement2 = stats[i + 1] / stats[i], stats[i + 2] / stats[i]
+            if improvement1 < k1 and improvement2 < k1:
+                if stats[-1] - stats[i] > k2:
+                    continue
+                return {'max': stats[i], 'argmax': x_ticks[i]}
+        return {'max': stats[-1], 'argmax': x_ticks[len(stats) - 1]}
+
+    def plot_by_plt(self, x_ticks, stats, title, within_ranking):
+        plt.figure(figsize=[6.8, 5.4])
+        ax = plt.subplot(111)
+        legend_labels, legend_lines = [], []
+        # colors = self.line_colors_one_ranking if within_ranking else self.line_colors_all_rankings
+        colors = self.line_colors_all_rankings
+        for name, (wrong_words, clwv) in stats.items():
+            end_ticks = min(31, len(wrong_words)) if title != 'ablation' else min(76, len(wrong_words))
+            line, = ax.plot(x_ticks[:end_ticks], wrong_words[:end_ticks], color=colors[name], label=name,
+                            linestyle=self.linestyles['error rate'])
+            legend_labels.append(name)
+            legend_lines.append(line)
+            line, = ax.plot(x_ticks[:end_ticks], clwv[:end_ticks], color=colors[name], label=name,
+                            linestyle=self.linestyles['CLWV'])
+        ax.set_xlabel('neurons', fontsize=16)
+        ax.set_ylabel('fraction of all predictions', fontsize=16)
+        # ax.annotate('saturation point', xy=(5.0, 0.37), xytext=(12, 0.55), size=16,
+        #             arrowprops=dict(facecolor='black', shrink=0.05, width=0.5, headwidth=8),
+        #             )
+        loc = plticker.MultipleLocator(base=50)
+        ax.xaxis.set_major_locator(loc)
+        ax.tick_params(axis='both', which='major', labelsize=16)
+        legend_labels = ['by ttb Linear', 'by ttb Probeless', 'by ttb Gaussian', 'by random',
+                         'by btt Linear', 'by btt Probeless', 'by btt Gaussian']
+        ax.legend(legend_lines, legend_labels, ncol=3, loc='center left', bbox_to_anchor=(-0.145, 1.12), fontsize=12.5)
+        plt.tight_layout()
+        plt.savefig(Path(self.root_path, 'figs', title + '_combined.png'))
+        plt.close()
+
+
 def run_all_probing(dir_path, plot_separate, only_dump=False):
     axs = [0] * 3
     max_nums = [150]
@@ -476,66 +531,56 @@ def run_all_probing(dir_path, plot_separate, only_dump=False):
             plt.savefig(Path(dir_path, ' '.join(['probing', metric, 'by layers'])))
 
 
-def run_ablation(dir_path, plot_separate):
-    if dir_path.name == 'Part of Speech':
-        return
-    axs = [0] * 3
-    metrics = ['total accuracy', 'loss', 'ablated words accuracy', 'non-ablated words accuracy']
-    for metric in metrics:
-        if not plot_separate:
-            fig, axs = plt.subplots(3, figsize=[8.4, 6.8])
-            fig.suptitle(' '.join(['ablation', dir_path.parts[-2], dir_path.parts[-1], metric, 'per layer']))
-            legend = None
-        for i, layer in enumerate([2, 7, 12]):
-            max_nums = [0, 400, 600] if plot_separate else [0]
-            for max_num in max_nums:
-                ablation_root_path = Path(dir_path, 'layer ' + str(layer), 'ablation by attr')
-                if not ablation_root_path.exists():
-                    continue
-                res_files_names = [f.name for f in ablation_root_path.glob('*') if
-                                   f.is_file() and f.name.startswith('sparsed') and 'intervention' not in f.name]
-                ab = ablation(dir_path=ablation_root_path, names=res_files_names, layer=layer, max_num=max_num)
-                # ab.dump_results()
-                axs[i], legend = ab.plot_metric(axs[i], plot_separate, metric)
-                if not plot_separate:
-                    axs[i].text(1.01, 0.5, 'layer ' + str(layer), transform=axs[i].transAxes)
-        if not plot_separate:
-            for ax in axs:
-                ax.label_outer()
-            # fig.legend(legend, ncol=5, loc='upper center', prop={'size':8}, bbox_to_anchor=(0.5,0.95))
-            fig.legend(ncol=5, loc='upper center', prop={'size': 8}, bbox_to_anchor=(0.5, 0.95))
-            plt.savefig(Path(dir_path, ' '.join(['ablation', metric, 'by layers'])))
+def run_interventions(model_type, set_type, language, attribute, layer, alpha=8, scaled=True):
+    spacy_root_path = Path('results', 'UM', model_type, language, attribute, 'layer ' + str(layer), 'spacy', set_type)
+    if not spacy_root_path.exists():
+        sys.exit('WRONG SETTING')
 
+    def relevant_file(f):
+        if alpha == 0:
+            return 'intervention' not in f.name
+        elif not scaled:
+            return 'intervention' in f.name and f.name.endswith(str(alpha))
+        else:
+            return f.name.endswith('lnspace')
 
-def run_morph(dir_path, set_type, all_rankings):
-    num_subplots = 3
-    axs = [0] * num_subplots
-    iter_list = ['wrong words', 'correct lemmas', 'kept attribute', 'correct values',
-                 'split words'] if all_rankings else ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi',
-                                                      'by random', 'by top cluster', 'by bottom cluster']
-    for i, layer in enumerate([2, 7, 12]):
-        # for i, layer in enumerate([1]):
-        spacy_root_path = Path(dir_path, 'layer ' + str(layer), 'spacy', set_type)
-        if not spacy_root_path.exists():
-            continue
-        res_files_names = [f.name for f in spacy_root_path.glob('*') if
-                           f.is_file() and f.name.endswith('lnspace')]
-        morphologyAblation(dir_path=spacy_root_path, names=res_files_names, layer=layer)
+    res_files_names = [f.name for f in spacy_root_path.glob('*') if
+                       f.is_file() and relevant_file(f)]
+    InterDump(dir_path=spacy_root_path, names=res_files_names, layer=layer)
+    inter_plt = InterPlot(model_type, set_type, language, attribute, layer)
+    inter_plt.load_data()
+    inter_plt.plot_line(alpha, scaled)
 
 
 if __name__ == "__main__":
     data_name = 'UM'
-    model_type = 'bert'
-    set_type = 'test'
+    parser = ArgumentParser()
+    parser.add_argument('-experiments', type=str)
+    parser.add_argument('-set', type=str)
+    parser.add_argument('-model', type=str)
+    parser.add_argument('-language', type=str)
+    parser.add_argument('-attribute', type=str)
+    parser.add_argument('-layer', type=int)
+    parser.add_argument('-alpha', type=int, default=8)
+    parser.add_argument('--scaled', default=False, action='store_true')
+    args = parser.parse_args()
+    experiments = args.experiments
+    if experiments != 'probing' and experiments != 'interventions':
+        sys.exit('WRONG SETTING')
+    set_type = args.set
+    if set_type is None:
+        set_type = 'test'
+    model_type = args.model
+    language = args.language
+    attribute = args.attribute
+    layer = args.layer
+    alpha = args.alpha
+    scaled = args.scaled
     # languages = ['eng', 'ara', 'hin', 'rus', 'fin', 'bul', 'tur', 'spa', 'fra']
-    languages = ['eng', 'spa', 'fra']
-    for lan in languages:
-        print(lan)
-        root_path = Path('results', data_name, model_type, lan)
-        atts_path = [p for p in root_path.glob('*') if not p.is_file()]
-        for att_path in atts_path:
-            # if 'Part of Speech' != att_path.name:
-            #     continue
-            # run_all_probing(att_path, plot_separate=True, only_dump=False)
-            # run_ablation(att_path, plot_separate=False)
-            run_morph(att_path, set_type, all_rankings=False)
+    att_path = Path('results', data_name, model_type, language, attribute)
+    if not Path(att_path, f'layer {str(layer)}').exists():
+        sys.exit('WRONG SETTING')
+    if experiments == 'probing':
+        run_all_probing(att_path, plot_separate=True, only_dump=False)
+    else:
+        run_interventions(model_type, set_type, language, attribute, layer, alpha, scaled)

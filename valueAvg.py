@@ -5,14 +5,15 @@ import numpy as np
 import itertools
 import sys
 
+
 def get_values_avg(root_path, att, layer):
-    with open(Path(root_path, 'train_parsed.pkl'),'rb') as f:
-        parsed_train = pickle.load(f)
+    with open(Path(root_path, 'train_parsed.pkl'), 'rb') as g:
+        parsed_train = pickle.load(g)
     values_to_ignore = set()
     ignore_path = Path(root_path, att, 'values_to_ignore.pkl')
     if ignore_path.exists():
-        with open(ignore_path, 'rb') as f:
-            values_to_ignore = pickle.load(f)
+        with open(ignore_path, 'rb') as g:
+            values_to_ignore = pickle.load(g)
     relevant_vals = {word['attributes'][att] for word in parsed_train if att in word['attributes']} - values_to_ignore
     embeddings_by_val = {val: [] for val in relevant_vals}
     for word in parsed_train:
@@ -22,12 +23,12 @@ def get_values_avg(root_path, att, layer):
     avg_embeds = list(avg_embeds_with_labels.values())
     return avg_embeds, avg_embeds_with_labels
 
+
 def get_diff_sum(arr):
     diff = np.zeros_like(arr[0])
     for couple in itertools.combinations(arr, 2):
         diff += np.abs(couple[0] - couple[1])
     return diff
-
 
 
 if __name__ == "__main__":

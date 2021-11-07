@@ -151,7 +151,7 @@ def ablate(data_name, set_type, model_type, language, layer, neurons_list, attri
     outputs_dir = Path('pickles', 'UM', model_type, language, attribute, str(layer), set_type)
     if not outputs_dir.exists():
         outputs_dir.mkdir(parents=True, exist_ok=True)
-    translation_str = '_intervention' if translation else ''
+    translation_str = '_translation' if translation else ''
     scaling_str = '_scaled' if scaled else ''
     with open(Path(outputs_dir,
                    f'ablation_token_outputs_by_{ranking}{translation_str}_{step}_{alpha_str}{scaling_str}.pkl'),

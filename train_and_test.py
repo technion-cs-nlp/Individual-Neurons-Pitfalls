@@ -1,12 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from model import PosTaggerWholeVector, PosTaggerSubset
+from model import LinearWholeVector, LinearSubset
 import consts
 import copy
 
-models = {'wholeVector': PosTaggerWholeVector,
-          'subset': PosTaggerSubset}
+models = {'wholeVector': LinearWholeVector,
+          'subset': LinearSubset}
 
 
 def l1_penalty(var):
@@ -86,7 +86,7 @@ def test(classifier, dataloader, save_path=''):
     all_preds, all_true_labels = torch.tensor([]), torch.tensor([])
     for i, features_and_labels in enumerate(dataloader):
         word_features, word_label = features_and_labels
-        if type(classifier) != PosTaggerWholeVector and type(classifier) != PosTaggerSubset:
+        if type(classifier) != LinearWholeVector and type(classifier) != LinearSubset:
             word_features = word_features.unsqueeze(1)
         outputs = classifier(word_features)
         word_label = word_label.to(device)
