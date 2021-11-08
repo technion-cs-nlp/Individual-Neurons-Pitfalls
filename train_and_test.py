@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from model import LinearWholeVector, LinearSubset
+from models import LinearWholeVector, LinearSubset
 import consts
 import copy
 
@@ -28,9 +28,6 @@ def train(dataloader, model_name: str, lambda1=0.001, lambda2=0.01,
     best_loss = consts.INF
     acc_on_best_loss, mi_on_best_loss = 0.0, 0.0
     best_model = None
-    label_ratios = (torch.histc(torch.tensor([sample[1] for sample in dataloader.dataset]).float(),
-                                bins=consts.LABEL_DIM)) / len(dataloader.dataset)
-    entropy = torch.distributions.Categorical(label_ratios).entropy()
     for epoch in range(consts.EPOCHS):
         if verbose:
             print('epoch ', epoch)
@@ -67,13 +64,10 @@ def train(dataloader, model_name: str, lambda1=0.001, lambda2=0.01,
             best_loss = running_loss
             best_model = copy.deepcopy(classifier)
             cross_entropy_avg = cross_entropy_sum / len(dataloader.dataset)
-            mi_on_best_loss = (entropy - cross_entropy_avg) / torch.tensor(2.0).log()
     if save_path != '':
         best_model.to('cpu')
         torch.save(best_model.state_dict(), save_path)
     print('accuracy on train set: %.5f' % (acc_on_best_loss / len(dataloader.dataset)))
-    print('mi on train set: %.5f' % mi_on_best_loss)
-    print('nmi on train set: %.5f' % (mi_on_best_loss / entropy).item())
     return classifier
 
 
@@ -105,13 +99,6 @@ def test(classifier, dataloader, save_path=''):
         #     print('accuracy after %d: %.3f' % (i * BATCH_SIZE, accuracy / (i * BATCH_SIZE)))
     final_acc = accuracy / len(dataloader.dataset)
     print('final accuracy on test: %.5f' % (accuracy / len(dataloader.dataset)))
-    label_ratios = (torch.histc(torch.tensor([sample[1] for sample in dataloader.dataset]).float(),
-                                bins=consts.LABEL_DIM)) / len(dataloader.dataset)
-    entropy = torch.distributions.Categorical(label_ratios).entropy()
-    cross_entropy_avg = cross_entropy_sum / len(dataloader.dataset)
-    mi = (entropy - cross_entropy_avg) / torch.tensor(2.0).log()
-    print('mi on test: %.5f' % mi)
-    print('nmi on test set: %.5f' % (mi / entropy).item())
     if save_path != '':
         torch.save(all_preds, save_path)
         torch.save(all_true_labels, 'pickles/true_labels')

@@ -266,7 +266,7 @@ def cluster_results(model_type):
 
 if __name__ == '__main__':
     abl = False
-    model_type = 'xlm'
+    model_type = 'bert'
     # data = create_empty_df(model_type, abl)
     # fill_df(model_type, data, abl)
     # if abl:

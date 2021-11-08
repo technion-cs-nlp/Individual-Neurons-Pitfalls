@@ -1,7 +1,7 @@
 import torch
 import os
 import pickle
-from model import BertLM
+from models import BertLM
 import consts
 from tqdm import tqdm as progressbar
 from pathlib import Path

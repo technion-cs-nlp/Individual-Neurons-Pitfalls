@@ -157,16 +157,21 @@ class morphCompare():
 
 if __name__ == '__main__':
     argparser = ArgumentParser()
-    argparser.add_argument('-set', type=str)
-    argparser.add_argument('-model', type=str)
+    argparser.add_argument('-set', type=str, help='data set the intervention was performed on,'
+                                                  ' can be dev or test, default is test. ')
+    argparser.add_argument('-model', type=str, help='either \'bert\' or \'xlm\'')
     argparser.add_argument('-language', type=str)
     argparser.add_argument('-attribute', type=str)
     argparser.add_argument('-layer', type=int)
     argparser.add_argument('-ranking', type=str)
-    argparser.add_argument('-step', type=int, default=-1)
-    argparser.add_argument('-alpha', type=int, default=1)
-    argparser.add_argument('--translation', default=False, action='store_true')
-    argparser.add_argument('-scaled', default=False, action='store_true')
+    argparser.add_argument('-step', type=int, default=10,
+                           help='step size between number of modified neurons (k), default is 10')
+    argparser.add_argument('-beta', type=int, default=8, help='value of beta, default is 8')
+    argparser.add_argument('--translation', default=False, action='store_true',
+                           help='if set to true, apply the translation method rather than ablation')
+    argparser.add_argument('--scaled', default=False, action='store_true',
+                           help='if set to true, use a scaled coefficients vector (alpha) instead of a constant '
+                                'coefficient for all neurons')
     args = argparser.parse_args()
     set_type = args.set
     model_type = args.model
@@ -175,7 +180,7 @@ if __name__ == '__main__':
     layer = args.layer
     ranking = args.ranking
     step = args.step
-    alpha = args.alpha
+    alpha = args.beta
     translation = args.translation
     scaled = args.scaling
     translation_str = '_translation' if translation else ''
@@ -203,7 +208,9 @@ if __name__ == '__main__':
         print('layer: ', layer)
         print('ranking: ', ranking)
         print('step: ', step)
-        print('alpha: ', alpha)
+        print('beta: ', alpha)
+        print('translation: ', translation)
+        print('scaled: ', scaled)
         mc = morphCompare(dump_path, set_type, model_type, language, attribute, layer, ranking,
                           translation=translation, step=step, alpha=alpha, scaled=scaled)
         mc.comp_all()

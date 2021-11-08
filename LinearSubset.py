@@ -1,7 +1,7 @@
 import pickle
 
 from train_and_test import train, test
-from DataHandler import UMDataHandler
+from dataHandler import UMDataHandler
 import consts
 import torch
 from pathlib import Path

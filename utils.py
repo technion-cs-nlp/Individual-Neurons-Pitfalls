@@ -3,7 +3,7 @@ import pickle
 import numpy as np
 import torch
 import consts
-from model import LinearWholeVector
+from models import LinearWholeVector
 
 
 def save_obj(obj, file_name, device, name, data_name, ablation=False):

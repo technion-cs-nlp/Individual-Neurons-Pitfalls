@@ -478,17 +478,17 @@ class InterPlot:
         plt.close()
 
 
-def run_all_probing(dir_path, plot_separate, only_dump=False):
+def run_all_probing(dir_path, metric, plot_separate, only_dump=False):
     axs = [0] * 3
     max_nums = [150]
     # model_types = ['all','linear','bayes'] if plot_separate else ['all']
     probe_types = ['all']
     # metrics = ['acc','selectivity','ranking avg', 'classifiers avg']
-    metrics = ['selectivity']
-    for metric in metrics:
+    metrics = [metric]
+    for met in metrics:
         if not plot_separate:
             fig, axs = plt.subplots(3, figsize=[8.4, 6.8])
-            fig.suptitle(' '.join(['probing', dir_path.parts[-2], dir_path.parts[-1], metric, 'per layer']))
+            fig.suptitle(' '.join(['probing', dir_path.parts[-2], dir_path.parts[-1], met, 'per layer']))
             legend = None
         # for i, layer in enumerate([2, 7, 12]):
         for i, layer in enumerate([12]):
@@ -517,9 +517,10 @@ def run_all_probing(dir_path, plot_separate, only_dump=False):
                             return plotting.plot_avgs(axs[i], plot_separate, 'classifiers')
 
                     plotting = probing(layer_dir, res_files_names, layer, max_num, probe_type)
+                    plotting.dump_results()
                     if only_dump:
                         continue
-                    res = plot_metric(plotting, metric)
+                    res = plot_metric(plotting, met)
                     if not plot_separate:
                         axs[i], legend = res
                         axs[i].text(1.01, 0.5, 'layer ' + str(layer), transform=axs[i].transAxes)
@@ -528,7 +529,7 @@ def run_all_probing(dir_path, plot_separate, only_dump=False):
                 ax.label_outer()
             # fig.legend(legend, ncol=5, loc='upper center', prop={'size': 8}, bbox_to_anchor=(0.5, 0.95))
             fig.legend(ncol=4, loc='upper center', prop={'size': 8}, bbox_to_anchor=(0.5, 0.95))
-            plt.savefig(Path(dir_path, ' '.join(['probing', metric, 'by layers'])))
+            plt.savefig(Path(dir_path, ' '.join(['probing', met, 'by layers'])))
 
 
 def run_interventions(model_type, set_type, language, attribute, layer, alpha=8, scaled=True):
@@ -555,14 +556,21 @@ def run_interventions(model_type, set_type, language, attribute, layer, alpha=8,
 if __name__ == "__main__":
     data_name = 'UM'
     parser = ArgumentParser()
-    parser.add_argument('-experiments', type=str)
-    parser.add_argument('-set', type=str)
-    parser.add_argument('-model', type=str)
-    parser.add_argument('-language', type=str)
-    parser.add_argument('-attribute', type=str)
-    parser.add_argument('-layer', type=int)
-    parser.add_argument('-alpha', type=int, default=8)
-    parser.add_argument('--scaled', default=False, action='store_true')
+    parser.add_argument('-experiments', type=str, help='must be either \'probing\' or \'interventions\'')
+    parser.add_argument('-set', type=str, help='data set to analyze results on, can be dev or test, default is test. '
+                                               'Only relevant if experiments==\'interventions\'')
+    parser.add_argument('-model', type=str, help='language model: \'bert\' or \'xlm\'')
+    parser.add_argument('-language', type=str, help='3-chars language code')
+    parser.add_argument('-attribute', type=str, help='name of attribute as defined by UM schema')
+    parser.add_argument('-layer', type=int, help='model\'s layer to analyze (0-12)')
+    parser.add_argument('-beta', type=int, default=8, help='value of beta, default is 8. '
+                                                           'Only relevant if experiments==\'interventions\'')
+    parser.add_argument('--scaled', default=False, action='store_true',
+                        help='whether to use a scaled coefficients vector (alpha) or a constant coefficient '
+                             'for all neurons, default is False (constant). '
+                             'Only relevant if experiments==\'interventions\'')
+    parser.add_argument('-metric', type=str, default='acc', help='acc or selectivity, default is acc. '
+                                                                 'Only relevant if experiments==\'probing\'')
     args = parser.parse_args()
     experiments = args.experiments
     if experiments != 'probing' and experiments != 'interventions':
@@ -574,13 +582,14 @@ if __name__ == "__main__":
     language = args.language
     attribute = args.attribute
     layer = args.layer
-    alpha = args.alpha
+    alpha = args.beta
     scaled = args.scaled
+    metric = args.metric
     # languages = ['eng', 'ara', 'hin', 'rus', 'fin', 'bul', 'tur', 'spa', 'fra']
     att_path = Path('results', data_name, model_type, language, attribute)
     if not Path(att_path, f'layer {str(layer)}').exists():
         sys.exit('WRONG SETTING')
     if experiments == 'probing':
-        run_all_probing(att_path, plot_separate=True, only_dump=False)
+        run_all_probing(att_path, metric, plot_separate=True, only_dump=False)
     else:
         run_interventions(model_type, set_type, language, attribute, layer, alpha, scaled)

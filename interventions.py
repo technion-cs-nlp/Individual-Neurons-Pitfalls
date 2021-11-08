@@ -2,10 +2,10 @@ import numpy as np
 
 import consts
 import utils
-from model import BertFromMiddle
+from models import BertFromMiddle
 import torch
 from tqdm import tqdm as progressbar
-from DataHandler import DataHandler
+from dataHandler import DataHandler
 from torch.utils.data.dataloader import DataLoader
 from pathlib import Path
 from transformers import BertTokenizer, BertForMaskedLM
@@ -163,16 +163,20 @@ if __name__ == "__main__":
     torch.manual_seed(consts.SEED)
     data_name = 'UM'
     parser = ArgumentParser()
-    parser.add_argument('-set', type=str)
+    parser.add_argument('-set', type=str, help='data set to analyze results on, can be dev or test, default is test. ')
     parser.add_argument('-model', type=str)
     parser.add_argument('-language', type=str)
     parser.add_argument('-attribute', type=str)
     parser.add_argument('-layer', type=int)
     parser.add_argument('-ranking', type=str)
-    parser.add_argument('-step', type=int, default=1)
-    parser.add_argument('-alpha', type=int, default=1)
-    parser.add_argument('--translation', default=False, action='store_true')
-    parser.add_argument('--scaled', default=False, action='store_true')
+    parser.add_argument('-step', type=int, default=10, help='step size between number of modified neurons (k), '
+                                                            'default is 10')
+    parser.add_argument('-beta', type=int, default=8, help='value of beta, default is 8')
+    parser.add_argument('--translation', default=False, action='store_true',
+                        help='if set to true, apply the translation method rather than ablation')
+    parser.add_argument('--scaled', default=False, action='store_true',
+                        help='if set to true, use a scaled coefficients vector (alpha) instead of a constant '
+                             'coefficient for all neurons')
     args = parser.parse_args()
     set_type = args.set
     if set_type is None:
@@ -183,7 +187,7 @@ if __name__ == "__main__":
     layer = args.layer
     ranking = args.ranking
     step = args.step
-    alpha = args.alpha
+    alpha = args.beta
     translation = args.translation
     scaled = args.scaled
     translation_str = '_translation' if translation else ''
@@ -236,7 +240,8 @@ if __name__ == "__main__":
         print('attribute: ', attribute)
         print('ranking: ', ranking)
         print('step: ', step)
-        print('alpha: ', alpha)
+        print('beta: ', alpha)
         print('translation:', translation)
+        print('scaled:', scaled)
         ablate(data_name, set_type, model_type, language, layer, neurons_list, attribute=attribute, ranking=ranking,
                step=step, alpha=alpha, translation=translation, scaled=scaled)

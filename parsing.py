@@ -17,10 +17,6 @@ from consts import train_paths, dev_paths, test_paths
 Most of this code was written by Lucas Torroba Hennigen https://github.com/rycolab/intrinsic-probing 
 """
 
-"""
-This function preprocesses UniMorph annotations as described in App. C on the paper.
-"""
-
 
 def parse_unimorph_features(features: List[str]) -> Dict[str, str]:
     final_attrs: Dict[str, str] = {}
