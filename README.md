@@ -6,7 +6,7 @@ named "Are All Neurons Created Equal? Interpreting and Controlling BERT through 
 ## Setup
 
 1. Install the required libraries by running `pip install -r requirements.txt`.
-2. Download the datasets of the languages you would like to experiment with from the [Universal Dependencies site](https://universaldependencies.org/) and place them in `data/UD`.
+2. Download the datasets of the languages you would like to experiment with from the [Universal Dependencies website](https://universaldependencies.org/) and place them in `data/UD`.
 *The supported languages are the ones we worked with in the paper. If you would like to experiment with a different one, you should explicilty add the relevant paths in consts.py.*
 3. Clone the modified [UD converter](https://github.com/ltorroba/ud-compatibility) to this repository's folder.
 4. Create an empty directory `data/UM`.
