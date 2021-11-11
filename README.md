@@ -15,7 +15,7 @@ This will place converted UM data files in the directory.
 6. Run `python parsing.py -model MODEL -language LANGUAGE` where MODEL can be 'bert' or 'xlm' and LANGUAGE is a three-letter language code.
 This will dump some parsed data files to be used by the experiment files.
 
-## PROBING EXPERIMENTS
+## Probing Experiments
 
 1. Run `python LinearWholeVector.py -model MODEL -language LANGUAGE -attribute ATT -layer LAYER`. 
 This will fit a linear classifier on the desired config (language, attribute, layer) to obtain the Linear ranking, as well as dump some more necessary files.
@@ -28,7 +28,7 @@ where Ranking can be any of the rankings from the previous step.
 5. To view a graph of your results, run `python analysis.py -experiments probing -model MODEL -language LANGUAGE -attribute ATT -layer LAYER`.
 The matching graph will be placed at `results/UM/MODEL/LANGUAGE/ATTRIBUTE/LAYER/figs/`.
 
-## INTERVENTION EXPERIMENMTS
+## Intervention Experiments
 
 1. Obtain any of the three ranking of your choosing by running the appropriate commands from 1-3 in the probing experiments.
 *Note that you must create the Linear ranking (step 1) first in order to obtain any of the other rankings*.
