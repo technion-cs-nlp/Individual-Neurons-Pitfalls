@@ -70,18 +70,18 @@ def obtain_ranking(model_type, lan, att, layer, ranking):
     pkl_path = Path('pickles', 'UM', model_type, lan, att)
     res_path = Path('results', 'UM', model_type, lan, att)
     try:
-        if ranking == 'top avg':
+        if ranking == 'ttb linear':
             label_to_idx_path = Path(pkl_path, 'label_to_idx.pkl')
             with open(label_to_idx_path, 'rb') as f:
                 label_to_idx = pickle.load(f)
             num_labels = len(label_to_idx)
             linear_model_path = Path(pkl_path, 'best_model_whole_vector_layer_' + str(layer))
             neurons = utils.sort_neurons_by_avg_weights(linear_model_path.__str__(), num_labels)
-        if ranking == 'bayes mi':
+        if ranking == 'ttb gaussian':
             res_file_dir = Path(res_path, 'layer ' + str(layer))
             bayes_res_path = Path(res_file_dir, 'bayes by bayes mi')
             neurons = utils.sort_neurons_by_bayes_mi(bayes_res_path)
-        if ranking == 'top cluster':
+        if ranking == 'ttb probeless':
             cluster_ranking_path = Path(pkl_path, str(layer), 'cluster_ranking.pkl')
             neurons = utils.sort_neurons_by_clusters(cluster_ranking_path)
     except:
@@ -95,7 +95,7 @@ def get_all_rankings(model_type, num_neurons: int = 768):
     # languages = ['eng']
     attributes = set([att.name for lan in languages for att in Path(res_root, lan).glob('*') if att.is_dir()])
     layers = [2, 7, 12]
-    rankings = ['top avg', 'bayes mi', 'top cluster']
+    rankings = ['ttb linear', 'ttb gaussian', 'ttb probeless']
     # cols = pd.MultiIndex.from_product([languages, attributes, layers])
     # rows = pd.MultiIndex.from_product([rankings])
     # df = pd.DataFrame(index=rows, columns=cols).sort_index().sort_index(axis=1)

@@ -55,7 +55,7 @@ if __name__ == "__main__":
     dump_dir = Path(root_path, attribute, str(layer))
     if not dump_dir.exists():
         dump_dir.mkdir()
-    with open(Path(dump_dir, 'cluster_ranking.pkl'), 'wb+') as f:
+    with open(Path(dump_dir, 'probeless_ranking.pkl'), 'wb+') as f:
         pickle.dump(ranking, f)
     with open(Path(dump_dir, 'avg_embeddings_by_label.pkl'), 'wb+') as f:
         pickle.dump(values_avg_with_labels, f)

@@ -11,14 +11,11 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import normalize
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-from pyclustering.cluster.xmeans import xmeans
-from pyclustering.cluster import cluster_visualizer
-from pyclustering.cluster.center_initializer import kmeans_plusplus_initializer
 
-order = ['bayes by bayes mi', 'linear by bayes mi', 'bayes by top avg', 'linear by top avg',
-         'bayes by top cluster', 'linear by top cluster', 'bayes by random', 'linear by random',
-         'bayes by worst mi', 'linear by worst mi', 'bayes by bottom avg', 'linear by bottom avg',
-         'bayes by bottom cluster', 'linear by bottom cluster']
+order = ['gaussian by ttb gaussian', 'linear by ttb gaussian', 'gaussian by ttb linear', 'linear by ttb linear',
+         'gaussian by ttb probless', 'linear by ttb probeless', 'gaussian by random', 'linear by random',
+         'gaussian by btt gaussian', 'linear by btt gaussian', 'gaussian by btt linear', 'linear by btt linear',
+         'gaussian by btt probeless', 'linear by btt probeless']
 
 def load_res(model_type, lan, att, layer, ablation: bool, max_num=None):
     if ablation:
@@ -151,7 +148,7 @@ def probing_analysis(df: pd.DataFrame):
             curr_res = pd.DataFrame.from_dict(lang_results[lang][num_neurons]).reindex(
                 order).reindex(columns=order)
             # curr_res = pd.DataFrame.from_dict(lang_results[lang][num_neurons]).sort_index().sort_index(axis=1)
-            samples = df.loc[idx[num_neurons], idx[lang, attributes, layers, 'linear by top avg']].count().sum()
+            samples = df.loc[idx[num_neurons], idx[lang, attributes, layers, 'linear by ttb linear']].count().sum()
             plot_heatmap(curr_res, f'{lang}_{num_neurons}_neurons', f'samples per ranking: {samples}', Path('UM', lang))
     for layer in layers:
         layer_results[layer] = get_setting_results(df, languages, attributes, [layer])
@@ -160,7 +157,7 @@ def probing_analysis(df: pd.DataFrame):
             curr_res = pd.DataFrame.from_dict(layer_results[layer][num_neurons]).reindex(
                 order).reindex(columns=order)
             # curr_res = pd.DataFrame.from_dict(layer_results[layer][num_neurons]).sort_index().sort_index(axis=1)
-            samples = df.loc[idx[num_neurons], idx[languages, attributes, layer, 'linear by top avg']].count().sum()
+            samples = df.loc[idx[num_neurons], idx[languages, attributes, layer, 'linear by ttb linear']].count().sum()
             plot_heatmap(curr_res, f'layer_{layer}_{num_neurons}_neurons', f'samples per ranking: {samples}',
                          Path('wilcoxon', f'layer {layer}'))
     for att in attributes:
@@ -170,7 +167,7 @@ def probing_analysis(df: pd.DataFrame):
             curr_res = pd.DataFrame.from_dict(att_results[att][num_neurons]).reindex(
                 order).reindex(columns=order)
             # curr_res = pd.DataFrame.from_dict(att_results[att][num_neurons]).sort_index().sort_index(axis=1)
-            samples = df.loc[idx[num_neurons], idx[languages, att, layers, 'linear by top avg']].count().sum()
+            samples = df.loc[idx[num_neurons], idx[languages, att, layers, 'linear by ttb linear']].count().sum()
             plot_heatmap(curr_res, f'{att}_{num_neurons}_neurons', f'samples per ranking: {samples}',
                          Path('wilcoxon', att))
     global_results = get_setting_results(df, languages, attributes, layers)
@@ -179,7 +176,7 @@ def probing_analysis(df: pd.DataFrame):
         curr_res = pd.DataFrame.from_dict(global_results[num_neurons]).reindex(order).reindex(
             columns=order)
         # curr_res = pd.DataFrame.from_dict(global_results[num_neurons]).sort_index().sort_index(axis=1)
-        samples = df.loc[idx[num_neurons], idx[languages, attributes, layers, 'linear by top avg']].count().sum()
+        samples = df.loc[idx[num_neurons], idx[languages, attributes, layers, 'linear by ttb linear']].count().sum()
         plot_heatmap(curr_res, f'global_{num_neurons}_neurons', f'samples per ranking: {samples}',
                      Path('wilcoxon'))
 

@@ -262,7 +262,7 @@ if __name__ == "__main__":
     control = args.control
     control_str = '_control' if control else ''
     data_name = 'UM'
-    greedy = True if ranking.startswith('greedy') else False
+    greedy = True if 'gaussian' in ranking else False
     label_to_idx_path = Path('pickles', 'UM', model_type, language, attribute, 'label_to_idx.pkl')
     if not label_to_idx_path.exists():
         sys.exit('WRONG SETTING')
@@ -271,17 +271,11 @@ if __name__ == "__main__":
         res_file_dir.mkdir(parents=True, exist_ok=True)
     linear_model_path = Path('pickles', data_name, model_type, language, attribute,
                              'best_model_whole_vector_layer_' + str(layer) + control_str)
-    cluster_ranking_path = Path('pickles', 'UM', model_type, language, attribute, str(layer), 'cluster_ranking.pkl')
-    bayes_res_path = Path(res_file_dir, 'bayes by bayes mi' + control_str)
-    worst_bayes_res_path = Path(res_file_dir, 'bayes by worst mi' + control_str)
+    cluster_ranking_path = Path('pickles', 'UM', model_type, language, attribute, str(layer), 'probeless_ranking.pkl')
+    bayes_res_path = Path(res_file_dir, 'gaussian by ttb gaussian' + control_str)
+    worst_bayes_res_path = Path(res_file_dir, 'gaussian by btt gaussian' + control_str)
     bayes = Bayesian(model_type=model_type, layer=layer, control=control, language=language, attribute=attribute)
-    if ranking == 'greedy best':
-        res_suffix = 'bayes mi'
-    elif ranking == 'greedy worst':
-        res_suffix = 'worst mi'
-    else:
-        res_suffix = ranking
-    res_file_name = 'bayes by ' + res_suffix + control_str
+    res_file_name = 'gaussian by ' + ranking + control_str
     # res_file_name += '_tmp' # for debugging
     with open(Path(res_file_dir, res_file_name), 'w+') as f:
         sys.stdout = f
@@ -298,17 +292,17 @@ if __name__ == "__main__":
             with open(label_to_idx_path, 'rb') as g:
                 label_to_idx = pickle.load(g)
             num_labels = len(label_to_idx)
-            ranking_params = {'top avg': (utils.sort_neurons_by_avg_weights, linear_model_path, num_labels),
-                              'bottom avg': (utils.sort_neurons_by_avg_weights, linear_model_path, num_labels),
-                              'bayes mi': (utils.sort_neurons_by_bayes_mi, bayes_res_path),
-                              'worst mi': (utils.sort_neurons_by_bayes_mi, worst_bayes_res_path),
+            ranking_params = {'ttb linear': (utils.sort_neurons_by_avg_weights, linear_model_path, num_labels),
+                              'btt linear': (utils.sort_neurons_by_avg_weights, linear_model_path, num_labels),
+                              'ttb gaussian': (utils.sort_neurons_by_bayes_mi, bayes_res_path),
+                              'btt gaussian': (utils.sort_neurons_by_bayes_mi, worst_bayes_res_path),
                               'random': (utils.sort_neurons_by_random, None),
-                              'top cluster': (utils.sort_neurons_by_clusters, cluster_ranking_path),
-                              'bottom cluster': (utils.sort_neurons_by_clusters, cluster_ranking_path)}
+                              'ttb probeless': (utils.sort_neurons_by_clusters, cluster_ranking_path),
+                              'btt probeless': (utils.sort_neurons_by_clusters, cluster_ranking_path)}
             try:
                 neurons_list = get_ranking(ranking_params[ranking])
             except FileNotFoundError:
                 sys.exit('WRONG SETTING')
-            if ranking == 'bottom avg' or ranking == 'bottom cluster':
+            if ranking == 'btt linear' or ranking == 'btt probeless':
                 neurons_list = list(reversed(neurons_list))
             run_bayes_on_subset(bayes, neurons_list)

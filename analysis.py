@@ -84,12 +84,14 @@ class probing(plots):
             names = [name for name in names if name.startswith(model_type)]
         colors_cmap = plt.get_cmap('Paired').colors
         colors_cmap = colors_cmap[1::2] + ('black', 'gray')
-        settings = ['bayes by bayes mi', 'linear by bayes mi', 'bayes by top avg', 'linear by top avg',
-                    'bayes by top cluster', 'linear by top cluster', 'bayes by random', 'linear by random',
-                    'bayes by worst mi', 'linear by worst mi', 'bayes by bottom avg', 'linear by bottom avg',
-                    'bayes by bottom cluster', 'linear by bottom cluster']
+        settings = ['gaussian by ttb gaussian', 'linear by ttb gaussian', 'gaussian by ttb linear',
+                    'linear by ttb linear',
+                    'gaussian by ttb probeless', 'linear by ttb probeless', 'gaussian by random', 'linear by random',
+                    'gaussian by btt gaussian', 'linear by btt gaussian', 'gaussian by btt linear',
+                    'linear by btt linear',
+                    'gaussian by btt probeless', 'linear by btt probeless']
         self.colors = {k: v for k, v in zip(settings, colors_cmap + colors_cmap)}
-        self.linestyles = {k: 'dotted' if 'bottom' in k or 'worst' in k else 'dashed' if 'random' in k else 'solid'
+        self.linestyles = {k: 'dotted' if 'btt' in k else 'dashed' if 'random' in k else 'solid'
                            for k in self.colors.keys()}
         self.names = names
         self.layer = layer
@@ -201,8 +203,8 @@ class probing(plots):
     def plot_avgs(self, ax, to_save, avg_type):
         if self.model_type != 'all':
             return
-        avg_names = ['linear', 'bayes', 'by top avg', 'by bottom avg', 'by random', 'by bayes mi',
-                     'by worst mi']
+        avg_names = ['linear', 'gaussian', 'by ttb linear', 'by btt linear', 'by random', 'by ttb gaussian',
+                     'by btt gaussian']
         train_acc_avgs = {name: [] for name in avg_names}
         test_acc_avgs = {name: [] for name in avg_names}
         train_sel_avgs = {name: [] for name in avg_names}
@@ -237,13 +239,12 @@ class probing(plots):
             if min_test_sel_len < self.max_num:
                 test_sel_relevant_results = [t[:min_test_sel_len] for t in test_sel_relevant_results]
             test_sel_avgs[avg_name] = torch.stack(test_sel_relevant_results).mean(dim=0).tolist()
-        class_names = ['linear', 'bayes']
+        class_names = ['linear', 'gaussian']
         train_acc_class_avgs = {name: res for name, res in train_acc_avgs.items() if name in class_names}
         test_acc_class_avgs = {name: res for name, res in test_acc_avgs.items() if name in class_names}
         train_sel_class_avgs = {name: res for name, res in train_sel_avgs.items() if name in class_names}
         test_sel_class_avgs = {name: res for name, res in test_sel_avgs.items() if name in class_names}
-        rank_names = ['by top avg', 'by bottom avg', 'by random', 'by bayes mi', 'by worst mi',
-                      'by mixed k=20', 'by mixed k=40', 'by zigzag']
+        rank_names = ['by ttb linear', 'by btt linear', 'by random', 'by ttb gaussian', 'by btt gaussian']
         train_acc_rank_avgs = {name: res for name, res in train_acc_avgs.items() if name in rank_names}
         test_acc_rank_avgs = {name: res for name, res in test_acc_avgs.items() if name in rank_names}
         train_sel_rank_avgs = {name: res for name, res in train_sel_avgs.items() if name in rank_names}
@@ -352,8 +353,8 @@ class InterPlot:
         self.attribute = attr
         self.layer = layer
         cmap = plt.get_cmap('Paired').colors
-        self.line_colors_all_rankings = dict(zip(['by top avg', 'by top cluster', 'by bayes mi', 'by random',
-                                                  'by bottom avg', 'by bottom cluster', 'by worst mi'],
+        self.line_colors_all_rankings = dict(zip(['by ttb linear', 'by ttb probeless', 'by ttb gaussian', 'by random',
+                                                  'by btt linear', 'by btt probeless', 'by btt gaussian'],
                                                  cmap))
         self.linestyles = {'error rate': 'solid', 'CLWV': 'dashed'}
         self.root_path = Path('results', 'UM', self.model_type, self.language, self.attribute,
@@ -368,15 +369,13 @@ class InterPlot:
         c_lemma_w_val_path = Path(self.root_path, 'c lemmas w val')
         w_lemma_c_val_path = Path(self.root_path, 'w lemmas c val')
         w_lemma_w_val_path = Path(self.root_path, 'w lemmas w val')
-        rankings = ['by top avg', 'by bottom avg', 'by bayes mi', 'by worst mi',
-                    'by top cluster', 'by bottom cluster', 'by random']
-        self.rankings = rankings + [r + '_intervention' for r in rankings] + \
-                        [f'{r}_intervention_{step}_{alpha}' for r in rankings for step in [10] for alpha in
+        rankings = ['by ttb linear', 'by btt linear', 'by ttb gaussian', 'by btt gaussian',
+                    'by ttb probeless', 'by btt probeless', 'by random']
+        self.rankings = rankings + \
+                        [f'{r}_translation_{step}_{alpha}' for r in rankings for step in [10] for alpha in
                          [1, 2, 4, 6, 8]] + \
-                        [f'{r}_intervention_{step}_{alpha}__scaled' for r in rankings for step in [10] for alpha in
-                         [2.0, 6.0, 8.0, 10.0, 12.0]] + \
-                        [f'{r}_intervention_{step}_{alpha}_lnspace' for r in rankings for step in [10] for alpha in
-                         [2.0, 4.0, 6.0, 8.0, 10.0, 12.0]]
+                        [f'{r}_translation_{step}_{alpha}_scaled' for r in rankings for step in [10] for alpha in
+                         [2.0, 6.0, 8.0, 10.0, 12.0]]
 
         stat_names = ['wrong words', 'correct lemmas', 'kept att', 'correct val', 'c lemma c val',
                       'c lemma w val', 'w lemma c val', 'w lemma w val']
@@ -404,23 +403,17 @@ class InterPlot:
     def plot_line(self, alpha, scaled):
         all_rankings_res = {}
         # for ranking in self.rankings[:7]:
-        for ranking in ['by top avg', 'by top cluster', 'by bayes mi', 'by random', 'by bottom avg',
-                        'by bottom cluster', 'by worst mi']:
-            # for ranking in ['by top avg', 'by top cluster']:
+        for ranking in ['by ttb linear', 'by ttb probeless', 'by ttb gaussian', 'by random', 'by btt linear',
+                        'by btt probeless', 'by btt gaussian']:
+            # for ranking in ['by ttb linear', 'by ttb probeless']:
             # num_ablated = [str(r[0]) for r in self.res[ranking]['wrong words']]
             to_plot = {}
-            inter_types = ['ablation', r'$\alpha=2$',
-                           r'$\alpha=8$', r'ranking scale $\alpha=6$', r'ranking scale $\alpha=8$',
-                           r'ranking scale $\alpha=12$', r'ln scale $\alpha=2$',
-                           r'ln scale $\alpha=4$', r'ln scale $\alpha=6$', r'ln scale $\alpha=8$',
-                           r'ln scale $\alpha=10$', r'ln scale $\alpha=12$']
+            inter_types = ['ablation', r'$\alpha='+str(alpha)+'$', r'scaled $\alpha='+str(alpha)+'$']
 
             for inter_type in inter_types:
-                method = ranking if inter_type == 'ablation' else f'{ranking}_intervention_10_{inter_type[-2]}' \
+                method = ranking if inter_type == 'ablation' else f'{ranking}_translation_10_{inter_type[-2]}' \
                     if 'scale' not in inter_type else \
-                    f'{ranking}_intervention_10_{float(inter_type[inter_type.index("=") + 1:-1])}__scaled' \
-                        if 'ln' not in inter_type else \
-                        f'{ranking}_intervention_10_{float(inter_type[inter_type.index("=") + 1:-1])}_lnspace'
+                        f'{ranking}_translation_10_{float(inter_type[inter_type.index("=") + 1:-1])}_scaled'
                 if self.res[method]['wrong words']:
                     wrong_preds = np.array([r[1] for r in self.res[method]['wrong words']])
                     clwv = np.array([r[1] for r in self.res[method]['c lemma w val']]) * wrong_preds
@@ -430,10 +423,10 @@ class InterPlot:
             elif not scaled:
                 all_rankings_res[ranking] = to_plot[r'$\alpha=' + str(alpha) + '$']
             else:
-                all_rankings_res[ranking] = to_plot[r'ln scale $\alpha=' + str(alpha) + '$']
+                all_rankings_res[ranking] = to_plot[r'scaled $\alpha=' + str(alpha) + '$']
         ticks = [i * 10 for i in range(len(list(all_rankings_res.values())[0][0]))]
-        # num_ablated = [str(r[0]) for r in self.res['by top avg_intervention_10_8.0_lnspace']['wrong words']]
-        title = 'ablation' if alpha == 0 else f'alpha_{alpha}_scaled' if scaled else f'alpha_{alpha}'
+        # num_ablated = [str(r[0]) for r in self.res['by ttb linear_intervention_10_8.0_lnspace']['wrong words']]
+        title = 'ablation' if alpha == 0 else f'beta_{alpha}_scaled' if scaled else f'beta_{alpha}'
         self.plot_by_plt(ticks, all_rankings_res, title, False)
         max_points = {ranking: self.find_saturation_point(stats[1], 1.05, 0.1, ticks) for ranking, stats in
                       all_rankings_res.items()}
@@ -478,10 +471,10 @@ class InterPlot:
         plt.close()
 
 
-def run_all_probing(dir_path, metric, plot_separate, only_dump=False):
+def run_all_probing(dir_path, layer, metric, plot_separate, only_dump=False):
     axs = [0] * 3
     max_nums = [150]
-    # model_types = ['all','linear','bayes'] if plot_separate else ['all']
+    # model_types = ['all','linear','gaussian'] if plot_separate else ['all']
     probe_types = ['all']
     # metrics = ['acc','selectivity','ranking avg', 'classifiers avg']
     metrics = [metric]
@@ -491,18 +484,18 @@ def run_all_probing(dir_path, metric, plot_separate, only_dump=False):
             fig.suptitle(' '.join(['probing', dir_path.parts[-2], dir_path.parts[-1], met, 'per layer']))
             legend = None
         # for i, layer in enumerate([2, 7, 12]):
-        for i, layer in enumerate([12]):
+        for i, l in enumerate([layer]):
             for max_num in max_nums:
                 for probe_type in probe_types:
-                    layer_dir = Path(dir_path, 'layer ' + str(layer))
+                    layer_dir = Path(dir_path, 'layer ' + str(l))
                     res_files_names = [f.name for f in layer_dir.glob('*') if
                                        f.is_file() and not f.name.startswith('whole')
                                        and not f.name.endswith('control') and not f.name.endswith('.pkl')]
                     if not res_files_names:
                         continue
-                    res_files_names = ['bayes by bayes mi', 'bayes by worst mi', 'linear by bayes mi',
-                                       'linear by top avg', 'linear by random',
-                                       'bayes by random', 'linear by bottom avg']
+                    # res_files_names = ['gaussian by ttb gaussian', 'gaussian by btt gaussian', 'linear by ttb gaussian',
+                    #                    'linear by ttb linear', 'linear by random',
+                    #                    'gaussian by random', 'linear by btt linear']
 
                     def plot_metric(plotting: probing, metric):
                         if metric == 'acc':
@@ -516,7 +509,7 @@ def run_all_probing(dir_path, metric, plot_separate, only_dump=False):
                         if metric == 'classifiers avg':
                             return plotting.plot_avgs(axs[i], plot_separate, 'classifiers')
 
-                    plotting = probing(layer_dir, res_files_names, layer, max_num, probe_type)
+                    plotting = probing(layer_dir, res_files_names, l, max_num, probe_type)
                     plotting.dump_results()
                     if only_dump:
                         continue
@@ -539,11 +532,11 @@ def run_interventions(model_type, set_type, language, attribute, layer, alpha=8,
 
     def relevant_file(f):
         if alpha == 0:
-            return 'intervention' not in f.name
+            return 'translation' not in f.name
         elif not scaled:
-            return 'intervention' in f.name and f.name.endswith(str(alpha))
+            return 'translation' in f.name and f.name.endswith(str(alpha))
         else:
-            return f.name.endswith('lnspace')
+            return f.name.endswith('scaled')
 
     res_files_names = [f.name for f in spacy_root_path.glob('*') if
                        f.is_file() and relevant_file(f)]
@@ -590,6 +583,6 @@ if __name__ == "__main__":
     if not Path(att_path, f'layer {str(layer)}').exists():
         sys.exit('WRONG SETTING')
     if experiments == 'probing':
-        run_all_probing(att_path, metric, plot_separate=True, only_dump=False)
+        run_all_probing(att_path, layer, metric, plot_separate=True, only_dump=False)
     else:
         run_interventions(model_type, set_type, language, attribute, layer, alpha, scaled)
