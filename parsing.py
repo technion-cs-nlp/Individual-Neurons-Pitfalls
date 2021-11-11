@@ -12,6 +12,7 @@ import torch
 from torch_scatter import scatter_mean
 from pathlib import Path
 from consts import train_paths, dev_paths, test_paths
+import pycountry
 
 """
 Most of this code was written by Lucas Torroba Hennigen https://github.com/rycolab/intrinsic-probing 
@@ -112,11 +113,14 @@ if __name__ == "__main__":
     args = argparser.parse_args()
     model_type = args.model
     language = args.language
+    if len(language) == 3:
+        language = pycountry.languages.get(alpha_3=language).alpha_2
     print(f'model: {model_type}')
     print(f'language: {language}')
     train_path = train_paths[language]
     dev_path = dev_paths[language]
     test_path = test_paths[language]
+    language = pycountry.languages.get(alpha_2=language).alpha_3
     pickles_root = Path('pickles', 'UM', model_type, language)
     if not pickles_root.exists():
         pickles_root.mkdir()
