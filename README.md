@@ -30,7 +30,7 @@ The matching graph will be placed at `results/UM/MODEL/LANGUAGE/ATTRIBUTE/LAYER/
 
 ## Intervention Experiments
 
-1. Obtain any of the three ranking of your choosing by running the appropriate commands from 1-3 in the probing experiments.
+1. Produce any of the three ranking of your choosing by running the appropriate commands from 1-3 in the probing experiments.
 *Note that you must create the Linear ranking (step 1) first in order to obtain any of the other rankings*.
 2. Run `python interventions.py -model MODEL -language LANGUAGE -attribute ATT -layer LAYER -ranking RANKING --translation -beta BETA --scaled`.
 This will execute interventions by the translation method with the specifier beta (in the paper we show results for beta=8).
