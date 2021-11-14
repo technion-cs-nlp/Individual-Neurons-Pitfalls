@@ -4,14 +4,15 @@ from conllu import parse_incr, TokenList
 import consts
 import yaml
 from typing import List, Tuple, Dict, Any
-from transformers import BertTokenizer, BertModel, XLMRobertaModel, XLMRobertaTokenizer
+from transformers import BertTokenizer, BertModel, XLMRobertaModel, XLMRobertaTokenizer, \
+    CamembertTokenizer, CamembertModel
 from tqdm import tqdm
 import pickle
 from os import path
 import torch
 from torch_scatter import scatter_mean
 from pathlib import Path
-from consts import train_paths, dev_paths, test_paths
+from consts import train_paths, dev_paths, test_paths, model_names
 import pycountry
 
 """
@@ -113,17 +114,15 @@ if __name__ == "__main__":
     args = argparser.parse_args()
     model_type = args.model
     language = args.language
-    if len(language) == 3:
-        language = pycountry.languages.get(alpha_3=language).alpha_2
     print(f'model: {model_type}')
     print(f'language: {language}')
     train_path = train_paths[language]
     dev_path = dev_paths[language]
     test_path = test_paths[language]
-    language = pycountry.languages.get(alpha_2=language).alpha_3
+    # language = pycountry.languages.get(alpha_2=language).alpha_3
     pickles_root = Path('pickles', 'UM', model_type, language)
     if not pickles_root.exists():
-        pickles_root.mkdir()
+        pickles_root.mkdir(parents=True)
     train_dump_path = Path(pickles_root, 'train_parsed.pkl')
     dev_dump_path = Path(pickles_root, 'dev_parsed.pkl')
     test_dump_path = Path(pickles_root, 'test_parsed.pkl')
@@ -138,7 +137,7 @@ if __name__ == "__main__":
     test_lemmas_path = Path(pickles_root, 'test_lemmas.pkl')
     tags_file = "unimorph/tags.yaml"
     skip_existing = False
-    model_name = 'bert-base-multilingual-cased' if model_type == 'bert' else 'xlm-roberta-base'
+    model_name = model_names[model_type]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     total = 0
 
@@ -149,8 +148,9 @@ if __name__ == "__main__":
     limit_number = None
     skipped: Dict[str, int] = {}
     # Setup tokenizer here provisionally as we need to know which sentences have over 512 subtokens
-    tokenizer = BertTokenizer.from_pretrained(model_name) if model_type == 'bert' \
-        else XLMRobertaTokenizer.from_pretrained(model_name)
+    tokenizer = XLMRobertaTokenizer.from_pretrained(
+        model_name) if 'xlm' in model_type else CamembertTokenizer.from_pretrained(
+        model_name) if 'fra' in model_type else BertTokenizer.from_pretrained(model_name)
     for file_path, dump_path, sentences_path, attributes_path, lemmas_path in zip(
             [test_path, dev_path, train_path],
             [test_dump_path, dev_dump_path, train_dump_path],
@@ -226,8 +226,9 @@ if __name__ == "__main__":
 
         print(f"Processing {file_path}...")
         # Setup model
-        model = BertModel.from_pretrained(model_name).to(device) if model_type == 'bert' \
-            else XLMRobertaModel.from_pretrained(model_name).to(device)
+        model = XLMRobertaModel.from_pretrained(model_name).to(
+            device) if 'xlm' in model_type else CamembertModel.from_pretrained(model_name).to(
+            device) if 'fra' in model_type else BertModel.from_pretrained(model_name).to(device)
         # Subtokenize, keeping original token indices
         results = []
         sentences = {}

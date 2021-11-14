@@ -418,12 +418,13 @@ class InterPlot:
                     wrong_preds = np.array([r[1] for r in self.res[method]['wrong words']])
                     clwv = np.array([r[1] for r in self.res[method]['c lemma w val']]) * wrong_preds
                     to_plot[inter_type] = (wrong_preds, clwv)
-            if alpha == 0:
-                all_rankings_res[ranking] = to_plot['ablation']
-            elif not scaled:
-                all_rankings_res[ranking] = to_plot[r'$\alpha=' + str(alpha) + '$']
-            else:
-                all_rankings_res[ranking] = to_plot[r'scaled $\alpha=' + str(alpha) + '$']
+            if to_plot:
+                if alpha == 0:
+                    all_rankings_res[ranking] = to_plot['ablation']
+                elif not scaled:
+                    all_rankings_res[ranking] = to_plot[r'$\alpha=' + str(alpha) + '$']
+                else:
+                    all_rankings_res[ranking] = to_plot[r'scaled $\alpha=' + str(alpha) + '$']
         ticks = [i * 10 for i in range(len(list(all_rankings_res.values())[0][0]))]
         # num_ablated = [str(r[0]) for r in self.res['by ttb linear_intervention_10_8.0_lnspace']['wrong words']]
         title = 'ablation' if alpha == 0 else f'beta_{alpha}_scaled' if scaled else f'beta_{alpha}'
@@ -438,8 +439,8 @@ class InterPlot:
             if improvement1 < k1 and improvement2 < k1:
                 if stats[-1] - stats[i] > k2:
                     continue
-                return {'max': stats[i], 'argmax': x_ticks[i]}
-        return {'max': stats[-1], 'argmax': x_ticks[len(stats) - 1]}
+                return {'max': round(stats[i], 2), 'argmax': x_ticks[i]}
+        return {'max': round(stats[-1], 2), 'argmax': x_ticks[len(stats) - 1]}
 
     def plot_by_plt(self, x_ticks, stats, title, within_ranking):
         plt.figure(figsize=[6.8, 5.4])
@@ -543,7 +544,7 @@ def run_interventions(model_type, set_type, language, attribute, layer, alpha=8,
     InterDump(dir_path=spacy_root_path, names=res_files_names, layer=layer)
     inter_plt = InterPlot(model_type, set_type, language, attribute, layer)
     inter_plt.load_data()
-    inter_plt.plot_line(alpha, scaled)
+    print(inter_plt.plot_line(alpha, scaled))
 
 
 if __name__ == "__main__":

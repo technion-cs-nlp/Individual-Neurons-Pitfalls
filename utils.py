@@ -23,7 +23,7 @@ def load_obj(file_name, device, name,data_name, model_type, ablation=False):
 
 
 def sort_neurons_by_avg_weights(saved_model_path:str, last_layer):
-    model = LinearWholeVector(last_layer)
+    model = LinearWholeVector(last_layer, last_layer)
     model.load_state_dict(torch.load(saved_model_path))
     weights = model.fc1.weight
     sorted_weights = weights.abs().mean(dim=0).sort(descending=True).indices

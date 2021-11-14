@@ -285,7 +285,7 @@ if __name__ == "__main__":
         print('language: ', language)
         print('attribute: ', attribute)
         if greedy:
-            by_best = True if ranking.endswith('best') else False
+            by_best = True if ranking.startswith('ttb') else False
             print('by best: ', by_best)
             greedy_selection(bayes, by_mi=True, by_best=by_best)
         else:

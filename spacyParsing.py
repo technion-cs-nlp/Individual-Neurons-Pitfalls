@@ -182,7 +182,7 @@ if __name__ == '__main__':
     step = args.step
     alpha = args.beta
     translation = args.translation
-    scaled = args.scaling
+    scaled = args.scaled
     translation_str = '_translation' if translation else ''
     scaled_str = '_scaled' if scaled else ''
     alpha_str = str(float(alpha)) if scaled else str(alpha)

@@ -43,3 +43,9 @@ test_paths = {'eng': 'data/UM/en/en_ewt-um-test.conllu',
               'tur': 'data/UM/tr/tr_imst-um-test.conllu',
               'spa': 'data/UM/es/es_gsd-um-test.conllu',
               'fra': 'data/UM/fr/fr_gsd-um-test.conllu'}
+
+model_names = {'bert':'bert-base-multilingual-cased',
+               'xlm': 'xlm-roberta-base',
+               'eng-bert':'bert-base-cased',
+               'spa-bert':'dccuchile/bert-base-spanish-wwm-cased',
+               'fra-bert':'camembert-base'}

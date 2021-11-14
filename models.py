@@ -2,7 +2,7 @@ import sentencepiece
 import torch
 from torch import nn
 from transformers import BertTokenizer, BertForMaskedLM, BertTokenizerFast, XLMRobertaTokenizer, \
-    XLMRobertaTokenizerFast, XLMRobertaForMaskedLM
+    XLMRobertaTokenizerFast, XLMRobertaForMaskedLM, CamembertTokenizerFast, CamembertForMaskedLM, CamembertTokenizer
 import consts
 
 
@@ -10,10 +10,13 @@ class BertLM(nn.Module):
     def __init__(self, model_type, layer):
         super(BertLM, self).__init__()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased') if model_type == 'bert' \
-            else XLMRobertaTokenizer.from_pretrained('xlm-roberta-base')
-        self.model = BertForMaskedLM.from_pretrained('bert-base-multilingual-cased') if model_type == 'bert' \
-            else XLMRobertaForMaskedLM.from_pretrained('xlm-roberta-base')
+        model_name = consts.model_names[model_type]
+        self.tokenizer = XLMRobertaTokenizer.from_pretrained(
+            model_name) if 'xlm' in model_type else CamembertTokenizer.from_pretrained(
+            model_name) if 'fra' in model_type else BertTokenizer.from_pretrained(model_name)
+        self.model = XLMRobertaForMaskedLM.from_pretrained(
+            model_name) if 'xlm' in model_type else CamembertForMaskedLM.from_pretrained(
+            model_name) if 'fra' in model_type else BertForMaskedLM.from_pretrained(model_name)
         self.layer = layer
 
     def forward(self, sentence):
@@ -53,18 +56,22 @@ class BertFromMiddle(nn.Module):
     def __init__(self, model_type, layer):
         super(BertFromMiddle, self).__init__()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.tokenizer = BertTokenizerFast.from_pretrained('bert-base-multilingual-cased') if model_type == 'bert' \
-            else XLMRobertaTokenizerFast.from_pretrained('xlm-roberta-base')
+        model_name = consts.model_names[model_type]
+        self.is_bert = 'bert' in model_type and not 'fra' in model_type
+        self.tokenizer = XLMRobertaTokenizerFast.from_pretrained(
+            model_name) if 'xlm' in model_type else CamembertTokenizerFast.from_pretrained(
+            model_name) if 'fra' in model_type else BertTokenizerFast.from_pretrained(model_name)
         self.layer = layer
-        self.bert = BertForMaskedLM.from_pretrained('bert-base-multilingual-cased').to(
-            self.device) if model_type == 'bert' \
-            else XLMRobertaForMaskedLM.from_pretrained('xlm-roberta-base').to(self.device)
+        self.bert = XLMRobertaForMaskedLM.from_pretrained(
+            model_name).to(self.device) if 'xlm' in model_type else CamembertForMaskedLM.from_pretrained(
+            model_name).to(self.device) if 'fra' in model_type else BertForMaskedLM.from_pretrained(model_name).to(
+            self.device)
         self.layers = self.bert.bert.encoder.layer[
-                      self.layer:] if model_type == 'bert' else self.bert.roberta.encoder.layer[self.layer:]
-        self.classifier = self.bert.cls if model_type == 'bert' else self.bert.lm_head
-        self.prefix_char = '##' if model_type == 'bert' else '\u2581'
-        self.pad_token = 0 if model_type == 'bert' else 1
-        self.special_tokens = [0, 101, 102] if model_type == 'bert' else [0, 1, 2]
+                      self.layer:] if self.is_bert else self.bert.roberta.encoder.layer[self.layer:]
+        self.classifier = self.bert.cls if self.is_bert else self.bert.lm_head
+        self.prefix_char = '##' if self.is_bert else '\u2581'
+        self.pad_token = 0 if self.is_bert else 1
+        self.special_tokens = [0, 101, 102] if self.is_bert else [0, 1, 2]
         self.model_type = model_type
 
     def map_words_to_tokens(self, sentences, batch_labels):
@@ -83,7 +90,7 @@ class BertFromMiddle(nn.Module):
                     #     splits += 1
                     # elif self.model_type == 'xlm' and curr_token.startswith(self.prefix_char):
                     #     splits += 1
-                    if bool(self.model_type == 'bert') ^ bool(curr_token.startswith(self.prefix_char)):
+                    if self.is_bert ^ bool(curr_token.startswith(self.prefix_char)):
                         splits += 1
                 if len(words_to_tokens[i]) == word - splits:
                     words_to_tokens[i].append([token_idx])
@@ -109,7 +116,7 @@ class BertFromMiddle(nn.Module):
             output_word_idx = -1
             for token_idx, token in enumerate(pred_sentence_tokens):
                 # if self.model_type == 'bert' and not token.startswith('##'):
-                if not bool(self.model_type == 'bert') ^ bool(token.startswith(self.prefix_char)):
+                if not self.is_bert ^ bool(token.startswith(self.prefix_char)):
                     output_word_idx += 1
                 curr_token_input_word = input_tokens_to_words[sent_idx][token_idx]
                 if len(input_to_output[sent_idx]) == curr_token_input_word:
@@ -163,7 +170,7 @@ class Linear(nn.Module):
 
 
 class LinearWholeVector(Linear):
-    def __init__(self, num_labels):
+    def __init__(self, first_layer_size, num_labels):
         super(LinearWholeVector, self).__init__()
         self.fc1 = nn.Linear(consts.BERT_OUTPUT_DIM, num_labels).to(self.device)
 
