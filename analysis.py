@@ -30,7 +30,7 @@ class plots:
         if not results:
             return None, None
         if to_save:
-            plt.figure(figsize=[6.4, 4.0])
+            plt.figure(figsize=[6.4, 6.0])
             # plt.figure()
             # ax = plt.subplot(111, title=title)
             ax = plt.subplot(111)
@@ -60,7 +60,7 @@ class plots:
         if to_save:
             box = ax.get_position()
             ax.set_position([box.x0, box.y0, box.width, box.height])
-            # ax.legend(legend_lines, legend_labels, ncol=3, loc='upper center', bbox_to_anchor=(0.45, 1.15), fontsize=8)
+            ax.legend(legend_lines, legend_labels, ncol=3, loc='upper center', bbox_to_anchor=(0.45, 1.3), fontsize=8)
             # figlegend = plt.figure(figsize=[12., 0.6])
             # legend_labels = ['Linear by Linear', 'Gaussian by Gaussian', 'Linear by Gaussian',
             #                  'Gaussian by random', 'Linear by random']
@@ -157,7 +157,7 @@ class probing(plots):
             # TODO change 'layer==2' condition to something that makes sense
             # it's there in order to place labels only once when plotting all layers together
             if self.layer == 2:
-                if 'bottom' not in name and 'worst' not in name:
+                if 'btt' not in name:
                     line, = ax.plot(res[:self.max_num], color=self.colors[name], label=name_for_legend,
                                     linestyle=self.linestyles[name])
                 else:
