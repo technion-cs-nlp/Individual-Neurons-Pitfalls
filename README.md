@@ -1,4 +1,5 @@
 # On the Pitfalls of Analyzing Individual Neurons in Language Models
+*Accepted to ICLR 2022 conference*
 
 Code for reproducing results from the paper [On the Pitfalls of Analyzing Individual Neurons](https://arxiv.org/abs/2110.07483), 
 named "Are All Neurons Created Equal? Interpreting and Controlling BERT through Individual Neurons" in a previous version.
@@ -42,3 +43,16 @@ This will parse the output from the experiment from the previous step using spaC
 Here, if beta=0 it will be considered an ablation experiment, otherwise it is translation. 
 The matching graph will be placed at `results/UM/MODEL/LANGUAGE/ATTRIBUTE/LAYER/spacy/test/figs`.
 
+## Citation
+If you find this repository useful in your work, please cite our paper:
+
+```
+@inproceedings{
+antverg2022pitfalls,
+title={On the Pitfalls of Analyzing Individual Neurons in Language Models},
+author={Omer Antverg and Yonatan Belinkov},
+booktitle={International Conference on Learning Representations},
+year={2022},
+url={https://openreview.net/forum?id=8uz0EWPQIMu}
+}
+```
