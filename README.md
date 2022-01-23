@@ -25,13 +25,13 @@ This will fit a linear classifier on the desired config (language, attribute, la
 `'ttb gaussian', 'btt gaussian', 'ttb linear', 'btt linear', 'ttb probeless', 'btt probeless', 'random'`. 
 Choosing 'ttb gaussian' here would obtain the gaussian ranking, but note the run time will be significantly longer.
 4. To test the Linear classifier, run `python LinearSubset.py -model MODEL -language -LANGUAGE -attribute ATT -layer LAYER -ranking RANKING`, 
-where Ranking can be any of the rankings from the previous step. 
+where RANKING can be any of the rankings from the previous step. 
 5. To view a graph of your results, run `python analysis.py -experiments probing -model MODEL -language LANGUAGE -attribute ATT -layer LAYER`.
 The matching graph will be placed at `results/UM/MODEL/LANGUAGE/ATTRIBUTE/LAYER/figs/`.
 
 ## Intervention Experiments
 
-1. Produce any of the three ranking of your choosing by running the appropriate commands from 1-3 in the probing experiments.
+1. Produce any of the three rankings of your choosing by running the appropriate commands from 1-3 in the probing experiments.
 *Note that you must create the Linear ranking (step 1) first in order to obtain any of the other rankings*.
 2. Run `python interventions.py -model MODEL -language LANGUAGE -attribute ATT -layer LAYER -ranking RANKING --translation -beta BETA --scaled`.
 This will execute interventions by the translation method with the specifier beta (in the paper we show results for beta=8).
