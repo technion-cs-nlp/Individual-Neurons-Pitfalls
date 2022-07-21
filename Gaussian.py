@@ -4,7 +4,6 @@ import numpy as np
 import torch.distributions.multivariate_normal as mn
 import utils
 from tqdm import tqdm as progressbar
-from linearCorrelationAnalysis import LCA
 import pickle
 from pathlib import Path
 import time
