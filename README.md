@@ -20,8 +20,8 @@ This will dump some parsed data files to be used by the experiment files.
 
 1. Run `python LinearWholeVector.py -model MODEL -language LANGUAGE -attribute ATT -layer LAYER`. 
 This will fit a linear classifier on the desired config (language, attribute, layer) to obtain the Linear ranking, as well as dump some more necessary files.
-2. Obtain the Probeless ranking by running `python Probeless -model MODEL -language LANGUAGE -attribute ATT -layer LAYER`. 
-3. To test the Gaussian classifier, run `python -model MODEL -language LANGUAGE -attribute ATT -layer LAYER -ranking RANKING`, where RANKING can be one of:
+2. Obtain the Probeless ranking by running `python Probeless.py -model MODEL -language LANGUAGE -attribute ATT -layer LAYER`. 
+3. To test the Gaussian classifier, run `python Gaussian.py -model MODEL -language LANGUAGE -attribute ATT -layer LAYER -ranking RANKING`, where RANKING can be one of:
 `'ttb gaussian', 'btt gaussian', 'ttb linear', 'btt linear', 'ttb probeless', 'btt probeless', 'random'`. 
 Choosing 'ttb gaussian' here would obtain the gaussian ranking, but note the run time will be significantly longer.
 4. To test the Linear classifier, run `python LinearSubset.py -model MODEL -language -LANGUAGE -attribute ATT -layer LAYER -ranking RANKING`, 
