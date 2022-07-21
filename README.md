@@ -34,12 +34,12 @@ The matching graph will be placed at `results/UM/MODEL/LANGUAGE/ATTRIBUTE/LAYER/
 1. Produce any of the three rankings of your choosing by running the appropriate commands from 1-3 in the probing experiments.
 *Note that you must create the Linear ranking (step 1) first in order to obtain any of the other rankings*.
 2. Run `python interventions.py -model MODEL -language LANGUAGE -attribute ATT -layer LAYER -ranking RANKING --translation -beta BETA --scaled`.
-This will execute interventions by the translation method with the specifier beta (in the paper we show results for beta=8).
+This will execute interventions by the translation method with the specified beta (in the paper we show results for beta=8).
 Not setting the `--scaled` flag would apply the same coefficient, beta, to all neurons.
 Not setting the `--translation` flag would apply ablation rather translation, and `beta` and `scaled` params will be ignored.
 3. Run `python spacyParsing.py -model MODEL -language LANGUAGE -attribute ATT -layer LAYER -ranking RANKING --translation -beta BETA --scaled`.
 This will parse the output from the experiment from the previous step using spaCy.
-5. To view a graph of your results, run `python analysis.py -experiments interventions -model MODEL -language LANGUAGE -attribute ATT -layer LAYER -beta BETA --scaled`.
+4. To view a graph of your results, run `python analysis.py -experiments interventions -model MODEL -language LANGUAGE -attribute ATT -layer LAYER -beta BETA --scaled`.
 Here, if beta=0 it will be considered an ablation experiment, otherwise it is translation. 
 The matching graph will be placed at `results/UM/MODEL/LANGUAGE/ATTRIBUTE/LAYER/spacy/test/figs`.
 
